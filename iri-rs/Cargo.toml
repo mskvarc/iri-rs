@@ -19,7 +19,7 @@ default = []
 static = ["dep:iri-rs-static"]
 enum = ["dep:iri-rs-enum"]
 serde = ["iri-rs-core/serde"]
-data = ["iri-rs-core/data"]
+fast-hash = ["iri-rs-core/fast-hash"]
 
 [dependencies]
 iri-rs-core.workspace = true

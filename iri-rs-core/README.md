@@ -40,7 +40,6 @@ cargo add iri-rs-core
 | Flag        | Default | Enables                                                            |
 | ----------- | :-----: | ------------------------------------------------------------------ |
 | `serde`     |         | `Serialize` / `Deserialize` for borrowed and owned types           |
-| `data`      |         | `base64` helpers for `data:` URIs                                  |
 | `fast-hash` |         | Skip re-parse on `Hash` — trades stricter invariants for speed     |
 
 ## What's inside

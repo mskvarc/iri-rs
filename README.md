@@ -71,7 +71,7 @@ cargo add iri-rs
 | `static`    |         | Compile-time `iri!`, `uri!`, `iri_ref!`, `uri_ref!` macros                |
 | `enum`      |         | `#[derive(IriEnum)]` for vocabulary enums                                 |
 | `serde`     |         | `Serialize` / `Deserialize` for borrowed and owned types                  |
-| `data`      |         | `base64` helpers for `data:` URIs                                         |
+| `fast-hash` |         | Skip re-parse on `Hash` — trades stricter invariants for speed            |
 
 ## Compile-time IRIs
 
