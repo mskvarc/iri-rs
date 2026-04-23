@@ -142,12 +142,17 @@ pub fn validate_scheme(scheme: &str) -> Result<(), IriParseError> {
 }
 
 pub fn validate_authority(authority: &str, is_iri: bool) -> Result<(), IriParseError> {
-    let Some(mut remaining) = authority.strip_prefix("//") else {
+    let Some(body) = authority.strip_prefix("//") else {
         return Err(IriParseErrorKind::InvalidHostCharacter(
             authority.chars().next().unwrap_or_default(),
         )
         .into());
     };
+    validate_authority_body(body, is_iri)
+}
+
+pub(crate) fn validate_authority_body(body: &str, is_iri: bool) -> Result<(), IriParseError> {
+    let mut remaining = body;
     if let Some(username_index) = memchr::memchr(b'@', remaining.as_bytes()) {
         let username = &remaining[..username_index];
         remaining = &remaining[username_index + 1..];

@@ -6,8 +6,8 @@ use crate::{
     resolve::resolve,
     types::{Iri, IriBuf, IriRef, IriRefBuf, Uri, UriBuf, UriRef, UriRefBuf},
     validate::{
-        validate_authority, validate_fragment, validate_iri_ref, validate_path, validate_query,
-        validate_resolved_path, validate_scheme,
+        validate_authority_body, validate_fragment, validate_iri_ref, validate_path,
+        validate_query, validate_resolved_path, validate_scheme,
     },
 };
 
@@ -21,7 +21,7 @@ impl IriRefBuf {
 
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
         if let Some(a) = authority {
-            validate_authority(&format!("//{}", a), true)?;
+            validate_authority_body(a, true)?;
         }
         rebuild(self, Edit::Authority(authority.map(str::to_string)), true)
     }
@@ -137,7 +137,7 @@ impl UriRefBuf {
     }
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
         if let Some(a) = authority {
-            validate_authority(&format!("//{}", a), false)?;
+            validate_authority_body(a, false)?;
         }
         rebuild_uri(self, Edit::Authority(authority.map(str::to_string)))
     }
