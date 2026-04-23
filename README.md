@@ -1,193 +1,169 @@
-# Internationalized Resource Identifiers and References
+# iri-rs
 
-[![CI](https://github.com/timothee-haudebourg/iref/workflows/CI/badge.svg)](https://github.com/timothee-haudebourg/iref/actions)
-[![Crate informations](https://img.shields.io/crates/v/iref.svg?style=flat-square)](https://crates.io/crates/iref)
-[![License](https://img.shields.io/crates/l/iref.svg?style=flat-square)](https://github.com/timothee-haudebourg/iref#license)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/iref)
+[![Crate](https://img.shields.io/crates/v/iri-rs.svg?style=flat-square)](https://crates.io/crates/iri-rs)
+[![Docs](https://img.shields.io/docsrs/iri-rs?style=flat-square)](https://docs.rs/iri-rs)
+[![MSRV](https://img.shields.io/crates/msrv/iri-rs?style=flat-square)](https://crates.io/crates/iri-rs)
+[![License](https://img.shields.io/crates/l/iri-rs.svg?style=flat-square)](#license)
 
-<!-- cargo-rdme start -->
+An allocation-conscious Rust implementation of URIs and IRIs ([RFC 3986][uri-rfc] / [RFC 3987][iri-rfc]) — parse, access components, mutate in-place, resolve references, normalize, compare.
 
-This crates provides an implementation of
-[Uniform Resource Identifiers (URIs, aka URLs)][uri] and [Internationalized
-Resource Identifiers (IRIs)][iri] following [RFC 3987][uri-rfc] and [RFC
-3986][iri-rfc] defined by the [Internet Engineering Task Force
-(IETF)][ietf] to uniquely identify objects across the web. IRIs are a
-superclass of URIs accepting international characters defined in the
-[Unicode][unicode] table.
-
-[uri]: <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>
-[uri-rfc]: <https://tools.ietf.org/html/rfc3986>
-[iri]: <https://en.wikipedia.org/wiki/Internationalized_resource_identifier>
-[iri-rfc]: <https://tools.ietf.org/html/rfc3987>
-[ietf]: <ietf.org>
-[unicode]: <https://en.wikipedia.org/wiki/Unicode>
-
-URI/IRIs are defined as a sequence of characters with distinguishable
-components: a scheme, an authority, a path, a query and a fragment.
+A URI/IRI is a sequence of characters split into distinguishable components:
 
 ```text
-    foo://example.com:8042/over/there?name=ferret#nose
-    \_/   \______________/\_________/ \_________/ \__/
-     |           |            |            |        |
-  scheme     authority       path        query   fragment
+  foo://user@example.com:8042/over/there?name=ferret#nose
+  └┬┘   └──────────┬────────┘└────┬────┘└────┬─────┘└┬─┘
+   │               │              │          │       │
+ scheme        authority          path      query  fragment
 ```
 
-This crate provides types to represent borrowed and owned URIs and IRIs
-(`Uri`, `Iri`, `UriBuf`, `IriBuf`), borrowed and owned URIs and IRIs
-references (`UriRef`, `IriRef`, `UriRefBuf`, `IriRefBuf`) and similar
-types for every part of an URI/IRI. Theses allows the easy access and
-manipulation of every components.
-It features:
-  - borrowed and owned URI/IRIs and URI/IRI-reference;
-  - mutable URI/IRI buffers (in-place);
-  - path normalization;
-  - comparison modulo normalization;
-  - URI/IRI-reference resolution;
-  - static URI/IRI parsing with the [`static-iref`] crate and its `iri`
-    macro; and
-  - `serde` support (by enabling the `serde` feature).
-
-[`static-iref`]: https://crates.io/crates/static-iref
-
-### Basic usage
-
-You can parse IRI strings by wrapping an `Iri` instance around a `str` slice.
-Note that no memory allocation occurs using `Iri`, it only borrows the input data.
-Access to each component is done in constant time.
+This crate gives you typed borrowed and owned views over each of them.
 
 ```rust
-use iref::Iri;
+use iri_rs::Iri;
 
-let iri = Iri::new("https://www.rust-lang.org/foo/bar?query#frag")?;
-
-println!("scheme: {}", iri.scheme());
-println!("authority: {}", iri.authority().unwrap());
-println!("path: {}", iri.path());
-println!("query: {}", iri.query().unwrap());
-println!("fragment: {}", iri.fragment().unwrap());
+let iri = Iri::parse("https://www.rust-lang.org/foo/bar?query#frag")?;
+assert_eq!(iri.scheme(), "https");
+assert_eq!(iri.authority(), Some("www.rust-lang.org"));
+assert_eq!(iri.path(), "/foo/bar");
+assert_eq!(iri.query(), Some("query"));
+assert_eq!(iri.fragment(), Some("frag"));
 ```
 
-IRIs can be created and modified using the `IriBuf` type.
-With this type, the IRI is held in a single buffer,
-modified in-place to reduce memory allocation and optimize memory accesses.
-This also allows the conversion from `IriBuf` into `Iri`.
+Mutate in place, no per-component allocations:
 
 ```rust
-use iref::IriBuf;
+use iri_rs::IriBuf;
 
-let mut iri = IriBuf::new("https://www.rust-lang.org".to_string())?;
-
-iri.authority_mut().unwrap().set_port(Some("40".try_into()?));
-iri.set_path("/foo".try_into()?);
-iri.path_mut().push("bar".try_into()?);
-iri.set_query(Some("query".try_into()?));
-iri.set_fragment(Some("fragment".try_into()?));
-
-assert_eq!(iri, "https://www.rust-lang.org:40/foo/bar?query#fragment");
+let mut iri = IriBuf::new("https://rust-lang.org")?;
+iri.set_authority(Some("rust-lang.org:40"))?;
+iri.set_path("/foo/bar")?;
+iri.set_query(Some("q"))?;
+assert_eq!(iri, "https://rust-lang.org:40/foo/bar?q");
 ```
 
-The `try_into` method is used to ensure that each string is syntactically correct with regard to its corresponding component (for instance, it is not possible to replace `"query"` with `"query?"` since `?` is not a valid query character).
+---
 
-### Detailed Usage
+## Why this fork
 
-#### Path manipulation
+Fork of [`iref`](https://crates.io/crates/iref), [`static-iref`](https://crates.io/crates/static-iref), and [`iref-enum`](https://crates.io/crates/iref-enum) by [Timothée Haudebourg](https://github.com/timothee-haudebourg/iref). Public API and RFC behavior largely unchanged; this fork adds:
 
-The IRI path is accessed through the `path` or `path_mut` methods.
-It is possible to access the segments of a path using the iterator returned by the `segments` method.
+- Workspace split into [`iri-rs-core`](iri-rs-core/), [`iri-rs-static`](iri-rs-static/), [`iri-rs-enum`](iri-rs-enum/) under the [`iri-rs`](iri-rs/) facade.
+- Reworked `IriEnum` derive ([`iri-rs-enum`](iri-rs-enum/)) — compile-time prefix resolution, `const`-friendly output via `from_raw_parts`.
+- Reworked compile-time macros (`iri!`, `uri!`, `iri_ref!`, `uri_ref!`) — validate at macro expansion, emit `const`-friendly `from_raw_parts` with pre-computed component positions.
+- SIMD-accelerated UTF-8 validation via `simdutf8`, `memchr`-accelerated percent scan, SWAR/byte-level fast paths on `new`, `eq`, `ord`, `hash`, `len`.
+- Opt-in `fast-hash` feature for hashing without re-parsing.
+- Criterion bench suite (`parse`, `accessors`, `resolve`, `normalize`, `mutate`, `normalize_eq`, `validate`).
+- Rust 2024 edition, MSRV 1.85.
+- Renamed crates: `iref` → `iri-rs`, `static-iref` → `iri-rs-static`, `iref-enum` → `iri-rs-enum`.
+
+Credit and history preserved — see [Attribution](#attribution).
+
+## Install
+
+```sh
+cargo add iri-rs
+```
+
+## Feature flags
+
+| Flag        | Default | Enables                                                                   |
+| ----------- | :-----: | ------------------------------------------------------------------------- |
+| `static`    |         | Compile-time `iri!`, `uri!`, `iri_ref!`, `uri_ref!` macros                |
+| `enum`      |         | `#[derive(IriEnum)]` for vocabulary enums                                 |
+| `serde`     |         | `Serialize` / `Deserialize` for borrowed and owned types                  |
+| `data`      |         | `base64` helpers for `data:` URIs                                         |
+
+## Compile-time IRIs
+
+With `static`, IRIs are validated at macro expansion and emitted as `const` expressions — zero runtime parsing, zero allocation:
 
 ```rust
-for segment in iri.path().segments() {
-  println!("{}", segment);
+use iri_rs::{Iri, iri};
+
+const HOME: Iri<&'static str> = iri!("https://www.rust-lang.org/");
+```
+
+Invalid literals fail to compile. Same for `uri!`, `iri_ref!`, `uri_ref!`.
+
+## Vocabulary enums
+
+With `enum`, map a known vocabulary to a plain enum — cheap storage and comparison, compile-time prefix resolution:
+
+```rust
+use iri_rs::{iri, IriEnum};
+
+#[derive(IriEnum, PartialEq, Debug)]
+#[iri_prefix("schema" = "https://schema.org/")]
+pub enum Vocab {
+    #[iri("schema:name")] Name,
+    #[iri("schema:knows")] Knows,
 }
+
+let term = Vocab::try_from(&iri!("https://schema.org/name")).unwrap();
+assert_eq!(term, Vocab::Name);
 ```
 
-One can use the `normalized_segments` method to iterate over the normalized
-version of the path where dot segments (`.` and `..`) are removed.
-In addition, it is possible to push or pop segments to a path using the
-corresponding methods:
-```rust
-let mut iri = IriBuf::new("https://rust-lang.org/a/c".to_string())?;
-let mut path = iri.path_mut();
+## References and resolution
 
-path.pop();
-path.push("b".try_into()?);
-path.push("c".try_into()?);
-path.push("".try_into()?); // the empty segment is valid.
-
-assert_eq!(iri.path(), "/a/b/c/");
-```
-
-#### IRI references
-
-This crate provides the two types `IriRef` and `IriRefBuf` to represent
-IRI references. An IRI reference is either an IRI or a relative IRI.
-Contrarily to regular IRIs, relative IRI references may have no scheme.
+`IriRef` / `IriRefBuf` cover absolute *and* relative references. A strict implementation of the [RFC 3986 §5 reference resolution algorithm](https://tools.ietf.org/html/rfc3986#section-5) with [Errata 4547](https://www.rfc-editor.org/errata/eid4547):
 
 ```rust
-let mut iri_ref = IriRefBuf::default(); // an IRI reference can be empty.
+use iri_rs::{Iri, IriRefBuf};
 
-// An IRI reference with a scheme is a valid IRI.
-iri_ref.set_scheme(Some("https".try_into()?));
-let iri: &Iri = iri_ref.as_iri().unwrap();
+let base = Iri::parse("http://a/b/c/d;p?q")?;
+let mut r = IriRefBuf::new("g;x=1/../y")?;
+assert_eq!(r.resolved(&base)?, "http://a/b/c/y");
 
-// An IRI can be safely converted into an IRI reference.
-let iri_ref: &IriRef = iri.into();
+r.resolve(&base)?;
+assert_eq!(r, "http://a/b/c/y");
 ```
 
-Given a base IRI, references can be resolved into a regular IRI using the
-[Reference Resolution Algorithm](https://tools.ietf.org/html/rfc3986#section-5)
-defined in [RFC 3986](https://tools.ietf.org/html/rfc3986).
-This crate provides a *strict* implementation of this algorithm.
+## Equivalence
 
-```rust
-let base_iri = Iri::new("http://a/b/c/d;p?q")?;
-let mut iri_ref = IriRefBuf::new("g;x=1/../y".to_string())?;
+Equality, ordering and hashing normalize:
 
-// non mutating resolution.
-assert_eq!(iri_ref.resolved(base_iri), "http://a/b/c/y");
+- **Dot segments** — `a/../a/./b/../b/c` ≡ `a/b/c`.
+- **Percent encoding** — `http://example.org` ≡ `http://exa%6dple.org` (via [`pct`](https://crates.io/crates/pct)).
+- **Protocol-agnostic** — `http://example.org` and `http://example.org:80` are **not** equal. This crate knows nothing about scheme defaults.
+- **Every `/` counts** — `/foo/bar` and `/foo/bar/` are **not** equal.
 
-// in-place resolution.
-iri_ref.resolve(base_iri);
-assert_eq!(iri_ref, "http://a/b/c/y");
+Two values whose `as_str()` differs can still hash equal — keep that in mind when used as map keys.
+
+## Examples
+
+```sh
+cargo run --example serde --features serde
 ```
 
-This crate implements
-[Errata 4547](https://www.rfc-editor.org/errata/eid4547) about the
-abnormal use of dot segments in relative paths.
-This means that for instance, the path `a/b/../../../` is normalized into
-`../`.
+## Benchmarks
 
-#### IRI comparison
+```sh
+cargo bench -p iri-rs-core
+```
 
-Here are the features of the IRI comparison method implemented in this crate.
+Criterion output: `target/criterion/`.
 
-##### Protocol agnostic
+## MSRV
 
-This implementation does not know anything about existing protocols.
-For instance, even if the
-[HTTP protocol](https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol)
-defines `80` as the default port,
-the two IRIs `http://example.org` and `http://example.org:80` are **not** equivalent.
+Rust 1.85 (edition 2024).
 
-##### Every `/` counts
+## Workspace layout
 
-The path `/foo/bar` is **not** equivalent to `/foo/bar/`.
+- [`iri-rs`](iri-rs/) — facade crate. Re-exports everything behind feature flags. Start here.
+- [`iri-rs-core`](iri-rs-core/) — types, parser, resolver, normalizer.
+- [`iri-rs-static`](iri-rs-static/) — `iri!` / `uri!` / `iri_ref!` / `uri_ref!` compile-time macros.
+- [`iri-rs-enum`](iri-rs-enum/) — `#[derive(IriEnum)]` for vocabulary enums.
 
-##### Path normalization
+## Attribution
 
-Paths are normalized during comparison by removing dot segments (`.` and `..`).
-This means for instance that the paths `a/b/c` and `a/../a/./b/../b/c` **are**
-equivalent.
-Note however that this crate implements
-[Errata 4547](https://www.rfc-editor.org/errata/eid4547) about the
-abnormal use of dot segments in relative paths.
-This means that for instance, the IRI `http:a/b/../../../` is equivalent to
-`http:../` and **not** `http:`.
+Original crates: [`iref`](https://crates.io/crates/iref), [`static-iref`](https://crates.io/crates/static-iref), and [`iref-enum`](https://crates.io/crates/iref-enum) by [Timothée Haudebourg](https://github.com/timothee-haudebourg/iref). Upstream commits are preserved in this repo's history under their original authorship. This fork is a workspace reorganization and a layer of performance work on top of the original design.
 
-##### Percent-encoded characters
+## License
 
-Thanks to the [`pct-str` crate](https://crates.io/crates/pct-str),
-percent encoded characters are correctly handled.
-The two IRIs `http://example.org` and `http://exa%6dple.org` **are** equivalent.
+Dual-licensed, same as upstream. Pick whichever fits:
 
-<!-- cargo-rdme end -->
+- [Apache-2.0](LICENSE-APACHE.md)
+- [MIT](LICENSE-MIT.md)
+
+[uri-rfc]: https://tools.ietf.org/html/rfc3986
+[iri-rfc]: https://tools.ietf.org/html/rfc3987
