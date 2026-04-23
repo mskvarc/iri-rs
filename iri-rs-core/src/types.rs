@@ -28,6 +28,7 @@ pub struct IriRef<T> {
 }
 
 impl<T: Deref<Target = str>> IriRef<T> {
+    #[inline]
     pub fn parse(iri: T) -> Result<Self, InvalidIri<T>> {
         let positions = find_iri_ref_positions(&iri);
         match validate_iri_ref(&iri, positions, true) {
@@ -36,6 +37,7 @@ impl<T: Deref<Target = str>> IriRef<T> {
         }
     }
 
+    #[inline]
     pub fn parse_unchecked(iri: T) -> Self {
         let positions = find_iri_ref_positions(&iri);
         Self { iri, positions }
@@ -175,6 +177,7 @@ impl<T: Deref<Target = str>> fmt::Display for IriRef<T> {
 
 impl FromStr for IriRef<String> {
     type Err = InvalidIri<String>;
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s.to_owned())
     }
@@ -331,6 +334,7 @@ impl<T: Deref<Target = str>> PartialEq<String> for IriRef<T> {
 pub struct Iri<T>(pub(crate) IriRef<T>);
 
 impl<T: Deref<Target = str>> Iri<T> {
+    #[inline]
     pub fn parse(iri: T) -> Result<Self, InvalidIri<T>> {
         let positions = find_iri_positions(&iri);
         match validate_iri(&iri, positions, true) {
@@ -339,6 +343,7 @@ impl<T: Deref<Target = str>> Iri<T> {
         }
     }
 
+    #[inline]
     pub fn parse_unchecked(iri: T) -> Self {
         let positions = find_iri_positions(&iri);
         Self(IriRef { iri, positions })
@@ -420,6 +425,7 @@ impl<T: Deref<Target = str>> fmt::Display for Iri<T> {
 
 impl FromStr for Iri<String> {
     type Err = InvalidIri<String>;
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s.to_owned())
     }
@@ -480,6 +486,7 @@ pub struct UriRef<T> {
 }
 
 impl<T: Deref<Target = str>> UriRef<T> {
+    #[inline]
     pub fn parse(uri: T) -> Result<Self, InvalidUriRef<T>> {
         if !uri.is_ascii() {
             return Err(InvalidUriRef(uri));
@@ -491,6 +498,7 @@ impl<T: Deref<Target = str>> UriRef<T> {
         }
     }
 
+    #[inline]
     pub fn parse_unchecked(uri: T) -> Self {
         let positions = find_iri_ref_positions(&uri);
         Self { uri, positions }
@@ -611,6 +619,7 @@ impl<T: Deref<Target = str>> fmt::Display for UriRef<T> {
 
 impl FromStr for UriRef<String> {
     type Err = InvalidUriRef<String>;
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s.to_owned())
     }
@@ -631,6 +640,7 @@ impl<'a> From<&'a UriRef<String>> for UriRef<&'a str> {
 pub struct Uri<T>(pub(crate) UriRef<T>);
 
 impl<T: Deref<Target = str>> Uri<T> {
+    #[inline]
     pub fn parse(uri: T) -> Result<Self, InvalidUri<T>> {
         if !uri.is_ascii() {
             return Err(InvalidUri(uri));
@@ -641,6 +651,7 @@ impl<T: Deref<Target = str>> Uri<T> {
             Err(_) => Err(InvalidUri(uri)),
         }
     }
+    #[inline]
     pub fn parse_unchecked(uri: T) -> Self {
         let positions = find_iri_positions(&uri);
         Self(UriRef { uri, positions })
@@ -717,6 +728,7 @@ impl<T: Deref<Target = str>> fmt::Display for Uri<T> {
 
 impl FromStr for Uri<String> {
     type Err = InvalidUri<String>;
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s.to_owned())
     }
