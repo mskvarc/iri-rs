@@ -18,9 +18,11 @@ All notable changes to this project will be documented in this file.
 - Remove
 
 ### 📚 Documentation
+- Add changelog
 - Update readme files
 
 ### 🔧 Refactor
+- Drop unused features and dependencies
 - Use pct encoding library
 - Custom iri grammar implementation
 - Remove hashbrown
