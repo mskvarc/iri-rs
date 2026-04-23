@@ -1,85 +1,74 @@
-//! This is crate provides useful macros to build `'static` URI/IRIs and URI/IRI
-//! references at compile time. It is re-exported by the [`iref`] crate when the
-//! `macros` feature is enabled.
+//! Compile-time macros for building `'static` IRIs / URIs.
 //!
-//! [`iref`]: <https://github.com/timothee-haudebourg/iref>
-//!
-//! ## Basic usage
-//!
-//! Using the `iref` crate, enable the `macros` feature and
-//! use the `uri!` (resp. `iri!`) macro to build URI (resp. IRI) statically, or
-//! the `uri_ref!` (resp `iri_ref!`) macro to build URI (resp. IRI) references
-//! statically.
-//!
-//! ```rust
-//! # extern crate iref_core as iref;
-//! # mod iref { pub use iref_core::{Iri, IriRef}; pub use iref_macros::{iri, iri_ref}; };
-//! use iref::{Iri, IriRef, iri, iri_ref};
-//!
-//! const IRI: &'static Iri = iri!("https://www.rust-lang.org/foo/bar#frag");
-//! const IRI_REF: &'static IriRef = iri_ref!("/foo/bar#frag");
-//! ```
+//! Macros validate at macro-expansion time via [`iri_rs_core`] and emit
+//! `const` expressions that construct the type from pre-computed positions,
+//! skipping all runtime work.
+
 use iri_rs_core::{IriBuf, IriRefBuf, UriBuf, UriRefBuf};
 use proc_macro::TokenStream;
 use quote::quote;
 
-/// Build an URI with a `'static` lifetime at compile time.
-///
-/// This macro expects a single string literal token representing the URI.
+fn positions_tokens(p: iri_rs_core::Positions) -> proc_macro2::TokenStream {
+    let s = p.scheme_end;
+    let a = p.authority_end;
+    let pe = p.path_end;
+    let q = p.query_end;
+    quote! {
+        ::iri_rs_core::Positions { scheme_end: #s, authority_end: #a, path_end: #pe, query_end: #q }
+    }
+}
+
 #[proc_macro]
 pub fn uri(tokens: TokenStream) -> TokenStream {
     match syn::parse::<syn::LitStr>(tokens) {
-        Ok(lit) => match UriBuf::new(lit.value().into_bytes()) {
-            Ok(uri) => {
-                let value = uri.as_bytes();
-                quote! {
-                    unsafe {
-                        ::iref::Uri::new_unchecked(&[#(#value),*])
+        Ok(lit) => {
+            let v = lit.value();
+            match UriBuf::new(v.as_bytes().to_vec()) {
+                Ok(uri) => {
+                    let s = uri.as_str();
+                    let p = positions_tokens(uri.positions());
+                    quote! {
+                        ::iri_rs_core::Uri::<&'static str>::from_raw_parts(#s, #p)
                     }
+                    .into()
                 }
-                .into()
+                Err(_) => produce_error("invalid URI"),
             }
-            Err(_) => produce_error("invalid URI"),
-        },
+        }
         Err(e) => e.to_compile_error().into(),
     }
 }
 
-/// Build an URI reference with a `'static` lifetime at compile time.
-///
-/// This macro expects a single string literal token representing the URI reference.
 #[proc_macro]
 pub fn uri_ref(tokens: TokenStream) -> TokenStream {
     match syn::parse::<syn::LitStr>(tokens) {
-        Ok(lit) => match UriRefBuf::new(lit.value().into_bytes()) {
-            Ok(uri_ref) => {
-                let value = uri_ref.as_bytes();
-                quote! {
-                    unsafe {
-                        ::iref::UriRef::new_unchecked(&[#(#value),*])
+        Ok(lit) => {
+            let v = lit.value();
+            match UriRefBuf::new(v.as_bytes().to_vec()) {
+                Ok(uri_ref) => {
+                    let s = uri_ref.as_str();
+                    let p = positions_tokens(uri_ref.positions());
+                    quote! {
+                        ::iri_rs_core::UriRef::<&'static str>::from_raw_parts(#s, #p)
                     }
+                    .into()
                 }
-                .into()
+                Err(_) => produce_error("invalid URI reference"),
             }
-            Err(_) => produce_error("invalid URI reference"),
-        },
+        }
         Err(e) => e.to_compile_error().into(),
     }
 }
 
-/// Build an IRI with a `'static` lifetime at compile time.
-///
-/// This macro expects a single string literal token representing the IRI.
 #[proc_macro]
 pub fn iri(tokens: TokenStream) -> TokenStream {
     match syn::parse::<syn::LitStr>(tokens) {
         Ok(lit) => match IriBuf::new(lit.value()) {
             Ok(iri) => {
-                let value = iri.as_str();
+                let s = iri.as_str();
+                let p = positions_tokens(iri.positions());
                 quote! {
-                    unsafe {
-                        ::iref::Iri::new_unchecked(#value)
-                    }
+                    ::iri_rs_core::Iri::<&'static str>::from_raw_parts(#s, #p)
                 }
                 .into()
             }
@@ -89,19 +78,15 @@ pub fn iri(tokens: TokenStream) -> TokenStream {
     }
 }
 
-/// Build an IRI reference with a `'static` lifetime at compile time.
-///
-/// This macro expects a single string literal token representing the IRI reference.
 #[proc_macro]
 pub fn iri_ref(tokens: TokenStream) -> TokenStream {
     match syn::parse::<syn::LitStr>(tokens) {
         Ok(lit) => match IriRefBuf::new(lit.value()) {
             Ok(iri_ref) => {
-                let value = iri_ref.as_str();
+                let s = iri_ref.as_str();
+                let p = positions_tokens(iri_ref.positions());
                 quote! {
-                    unsafe {
-                        ::iref::IriRef::new_unchecked(#value)
-                    }
+                    ::iri_rs_core::IriRef::<&'static str>::from_raw_parts(#s, #p)
                 }
                 .into()
             }
