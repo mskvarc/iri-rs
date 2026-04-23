@@ -21,7 +21,7 @@ pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
     } else {
         None
     };
-    if sa.map(str::as_bytes).map(|s| s.len()) != sb.map(str::as_bytes).map(|s| s.len()) {
+    if sa.map(str::len) != sb.map(str::len) {
         return false;
     }
     match (sa, sb) {

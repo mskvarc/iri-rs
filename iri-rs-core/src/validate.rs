@@ -124,24 +124,19 @@ pub fn is_iprivate(c: char) -> bool {
 }
 
 pub fn validate_scheme(scheme: &str) -> Result<(), IriParseError> {
-    let mut chars = scheme.bytes();
-    let first = chars.next().ok_or(IriParseErrorKind::EmptyScheme)?;
+    let bytes = scheme.as_bytes();
+    let first = *bytes.first().ok_or(IriParseErrorKind::EmptyScheme)?;
     if !first.is_ascii_alphabetic() {
         return Err(IriParseErrorKind::InvalidSchemeCharacter(
             scheme.chars().next().unwrap_or_default(),
         )
         .into());
     }
-    for c in &mut chars {
-        if !SCHEME_CHAR[usize::from(c)] {
-            return Err(IriParseErrorKind::InvalidSchemeCharacter(
-                scheme[scheme.len() - chars.len() - 1..]
-                    .chars()
-                    .next()
-                    .unwrap_or_default(),
-            )
-            .into());
-        }
+    if let Some(i) = bytes[1..].iter().position(|&c| !SCHEME_CHAR[c as usize]) {
+        return Err(IriParseErrorKind::InvalidSchemeCharacter(
+            scheme[i + 1..].chars().next().unwrap_or_default(),
+        )
+        .into());
     }
     Ok(())
 }
@@ -222,7 +217,11 @@ pub fn validate_ip_v_future(ip: &str) -> Result<(), IriParseError> {
         )
         .into());
     };
-    let version_size = rest.bytes().take_while(|c| c.is_ascii_hexdigit()).count();
+    let version_size = rest
+        .as_bytes()
+        .iter()
+        .position(|c| !c.is_ascii_hexdigit())
+        .unwrap_or(rest.len());
     if version_size == 0 {
         return Err(IriParseErrorKind::InvalidHostCharacter(
             rest.chars().next().unwrap_or_default(),
@@ -239,33 +238,25 @@ pub fn validate_ip_v_future(ip: &str) -> Result<(), IriParseError> {
     if rest.is_empty() {
         return Err(IriParseErrorKind::InvalidHostCharacter(']').into());
     }
-    let mut chars = rest.bytes();
-    for c in &mut chars {
-        if !UNRESERVED_SUB_DELIMS_COLON[usize::from(c)] {
-            return Err(IriParseErrorKind::InvalidHostCharacter(
-                rest[rest.len() - chars.len() - 1..]
-                    .chars()
-                    .next()
-                    .unwrap_or_default(),
-            )
-            .into());
-        }
+    if let Some(i) = rest
+        .as_bytes()
+        .iter()
+        .position(|&c| !UNRESERVED_SUB_DELIMS_COLON[c as usize])
+    {
+        return Err(IriParseErrorKind::InvalidHostCharacter(
+            rest[i..].chars().next().unwrap_or_default(),
+        )
+        .into());
     }
     Ok(())
 }
 
 pub fn validate_port(port: &str) -> Result<(), IriParseError> {
-    let mut chars = port.bytes();
-    for c in &mut chars {
-        if !c.is_ascii_digit() {
-            return Err(IriParseErrorKind::InvalidPortCharacter(
-                port[port.len() - chars.len() - 1..]
-                    .chars()
-                    .next()
-                    .unwrap_or_default(),
-            )
-            .into());
-        }
+    if let Some(i) = port.as_bytes().iter().position(|c| !c.is_ascii_digit()) {
+        return Err(IriParseErrorKind::InvalidPortCharacter(
+            port[i..].chars().next().unwrap_or_default(),
+        )
+        .into());
     }
     Ok(())
 }
