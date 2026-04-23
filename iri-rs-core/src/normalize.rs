@@ -5,6 +5,8 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use pct::PctStr;
+
 use crate::parse::Positions;
 
 pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
@@ -216,91 +218,11 @@ pub fn pct_unreserved_eq(a: &str, b: &str) -> bool {
     {
         return a.as_bytes() == b.as_bytes();
     }
-    let mut ai = DecodeIter::new(a);
-    let mut bi = DecodeIter::new(b);
-    loop {
-        match (ai.next(), bi.next()) {
-            (None, None) => return true,
-            (Some(x), Some(y)) if x == y => continue,
-            _ => return false,
-        }
-    }
-}
-
-struct DecodeIter<'a> {
-    bytes: &'a [u8],
-    pos: usize,
-    pending: [u8; 2],
-    pending_len: u8,
-    pending_pos: u8,
-}
-
-impl<'a> DecodeIter<'a> {
-    fn new(s: &'a str) -> Self {
-        Self {
-            bytes: s.as_bytes(),
-            pos: 0,
-            pending: [0; 2],
-            pending_len: 0,
-            pending_pos: 0,
-        }
-    }
-}
-
-fn is_unreserved_byte(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'-' || b == b'.' || b == b'_' || b == b'~'
-}
-
-fn hex_val(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'a'..=b'f' => Some(b - b'a' + 10),
-        b'A'..=b'F' => Some(b - b'A' + 10),
-        _ => None,
-    }
-}
-
-impl<'a> Iterator for DecodeIter<'a> {
-    type Item = u8;
-    fn next(&mut self) -> Option<u8> {
-        if self.pending_pos < self.pending_len {
-            let b = self.pending[self.pending_pos as usize];
-            self.pending_pos += 1;
-            return Some(b);
-        }
-        if self.pos >= self.bytes.len() {
-            return None;
-        }
-        let b = self.bytes[self.pos];
-        if b == b'%' && self.pos + 2 < self.bytes.len() {
-            if let (Some(h1), Some(h2)) = (
-                hex_val(self.bytes[self.pos + 1]),
-                hex_val(self.bytes[self.pos + 2]),
-            ) {
-                let decoded = h1 * 16 + h2;
-                self.pos += 3;
-                if is_unreserved_byte(decoded) {
-                    return Some(decoded);
-                }
-                self.pending = [
-                    to_upper_hex(self.bytes[self.pos - 2]),
-                    to_upper_hex(self.bytes[self.pos - 1]),
-                ];
-                self.pending_len = 2;
-                self.pending_pos = 0;
-                return Some(b'%');
-            }
-        }
-        self.pos += 1;
-        Some(b)
-    }
-}
-
-fn to_upper_hex(b: u8) -> u8 {
-    match b {
-        b'a'..=b'f' => b - b'a' + b'A',
-        _ => b,
-    }
+    // SAFETY: callers pass validated substrings of an already-parsed IRI, so
+    // any `%` is followed by two hex digits.
+    let pa = unsafe { PctStr::new_unchecked(a) };
+    let pb = unsafe { PctStr::new_unchecked(b) };
+    pa == pb
 }
 
 pub fn normalized_hash<H: Hasher>(iri: &str, p: Positions, state: &mut H) {
@@ -351,9 +273,9 @@ fn hash_pct_unreserved<H: Hasher>(s: &str, state: &mut H) {
         state.write(s.as_bytes());
         return;
     }
-    for b in DecodeIter::new(s) {
-        b.hash(state);
-    }
+    // SAFETY: input is a validated substring of a parsed IRI.
+    let ps = unsafe { PctStr::new_unchecked(s) };
+    ps.hash(state);
 }
 
 #[cfg(test)]
