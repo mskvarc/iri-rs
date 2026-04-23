@@ -232,39 +232,58 @@ enum Edit {
 }
 
 fn rebuild(buf: &mut IriRefBuf, edit: Edit, is_iri: bool) -> Result<(), IriParseError> {
-    let (scheme, authority, path, query, fragment) = destructure(buf.as_str(), buf.positions);
-    let (scheme, authority, path, query, fragment) = apply_edit(
-        edit,
-        scheme.map(str::to_string),
-        authority.map(str::to_string),
-        path.to_string(),
-        query.map(str::to_string),
-        fragment.map(str::to_string),
-    );
-
-    let mut out = String::with_capacity(buf.as_str().len() + 8);
-    if let Some(s) = &scheme {
-        out.push_str(s);
-        out.push(':');
-    }
-    if let Some(a) = &authority {
-        out.push_str("//");
-        out.push_str(a);
-    }
-    out.push_str(&path);
-    if let Some(q) = &query {
-        out.push('?');
-        out.push_str(q);
-    }
-    if let Some(f) = &fragment {
-        out.push('#');
-        out.push_str(f);
-    }
-
+    let out = {
+        let s = buf.as_str();
+        let (scheme, authority, path, query, fragment) = destructure(s, buf.positions);
+        let mut out = String::with_capacity(s.len() + 8);
+        match &edit {
+            Edit::Scheme(new) => {
+                write_iri(&mut out, new.as_deref(), authority, path, query, fragment)
+            }
+            Edit::Authority(new) => {
+                write_iri(&mut out, scheme, new.as_deref(), path, query, fragment)
+            }
+            Edit::Path(new) => write_iri(&mut out, scheme, authority, new, query, fragment),
+            Edit::Query(new) => {
+                write_iri(&mut out, scheme, authority, path, new.as_deref(), fragment)
+            }
+            Edit::Fragment(new) => {
+                write_iri(&mut out, scheme, authority, path, query, new.as_deref())
+            }
+        }
+        out
+    };
     let positions = find_iri_ref_positions(&out);
     validate_iri_ref(&out, positions, is_iri)?;
     *buf = IriRef::from_raw_parts(out, positions);
     Ok(())
+}
+
+fn write_iri(
+    out: &mut String,
+    scheme: Option<&str>,
+    authority: Option<&str>,
+    path: &str,
+    query: Option<&str>,
+    fragment: Option<&str>,
+) {
+    if let Some(s) = scheme {
+        out.push_str(s);
+        out.push(':');
+    }
+    if let Some(a) = authority {
+        out.push_str("//");
+        out.push_str(a);
+    }
+    out.push_str(path);
+    if let Some(q) = query {
+        out.push('?');
+        out.push_str(q);
+    }
+    if let Some(f) = fragment {
+        out.push('#');
+        out.push_str(f);
+    }
 }
 
 fn rebuild_uri(buf: &mut UriRefBuf, edit: Edit) -> Result<(), IriParseError> {
@@ -307,25 +326,3 @@ fn destructure(
     (scheme, authority, path, query, fragment)
 }
 
-fn apply_edit(
-    edit: Edit,
-    scheme: Option<String>,
-    authority: Option<String>,
-    path: String,
-    query: Option<String>,
-    fragment: Option<String>,
-) -> (
-    Option<String>,
-    Option<String>,
-    String,
-    Option<String>,
-    Option<String>,
-) {
-    match edit {
-        Edit::Scheme(s) => (s, authority, path, query, fragment),
-        Edit::Authority(a) => (scheme, a, path, query, fragment),
-        Edit::Path(p) => (scheme, authority, p, query, fragment),
-        Edit::Query(q) => (scheme, authority, path, q, fragment),
-        Edit::Fragment(f) => (scheme, authority, path, query, f),
-    }
-}
