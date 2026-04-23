@@ -1,4 +1,5 @@
 pub(crate) mod common;
+pub mod error;
 pub mod iri;
 pub mod uri;
 pub(crate) mod utils;
