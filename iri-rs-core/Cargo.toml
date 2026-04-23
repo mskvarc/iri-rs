@@ -49,3 +49,11 @@ harness = false
 name = "mutate"
 harness = false
 
+[[bench]]
+name = "normalize_eq"
+harness = false
+
+[[bench]]
+name = "validate"
+harness = false
+
