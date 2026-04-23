@@ -46,19 +46,15 @@
 //! Access to each component is done in constant time.
 //!
 //! ```rust
-//! use iref::Iri;
+//! use iri_rs::Iri;
 //!
-//! # fn main() -> Result<(), iref::IriError<&'static str>> {
-//! let iri = Iri::new("https://www.rust-lang.org/foo/bar?query#frag")?;
+//! let iri = Iri::parse("https://www.rust-lang.org/foo/bar?query#frag").unwrap();
 //!
-//! println!("scheme: {}", iri.scheme());
-//! println!("authority: {}", iri.authority().unwrap());
-//! println!("path: {}", iri.path());
-//! println!("query: {}", iri.query().unwrap());
-//! println!("fragment: {}", iri.fragment().unwrap());
-//! #
-//! # Ok(())
-//! # }
+//! assert_eq!(iri.scheme(), "https");
+//! assert_eq!(iri.authority(), Some("www.rust-lang.org"));
+//! assert_eq!(iri.path(), "/foo/bar");
+//! assert_eq!(iri.query(), Some("query"));
+//! assert_eq!(iri.fragment(), Some("frag"));
 //! ```
 //!
 //! IRIs can be created and modified using the `IriBuf` type.
@@ -67,20 +63,15 @@
 //! This also allows the conversion from `IriBuf` into `Iri`.
 //!
 //! ```rust
-//! use iref::IriBuf;
+//! use iri_rs::IriBuf;
 //!
-//! # fn main() -> Result<(), iref::IriError<std::borrow::Cow<'static, str>>> {
-//! let mut iri = IriBuf::new("https://www.rust-lang.org".to_string())?;
-//!
-//! iri.authority_mut().unwrap().set_port(Some("40".try_into()?));
-//! iri.set_path("/foo".try_into()?);
-//! iri.path_mut().push("bar".try_into()?);
-//! iri.set_query(Some("query".try_into()?));
-//! iri.set_fragment(Some("fragment".try_into()?));
+//! let mut iri = IriBuf::new("https://www.rust-lang.org").unwrap();
+//! iri.set_authority(Some("www.rust-lang.org:40")).unwrap();
+//! iri.set_path("/foo/bar").unwrap();
+//! iri.set_query(Some("query")).unwrap();
+//! iri.set_fragment(Some("fragment")).unwrap();
 //!
 //! assert_eq!(iri, "https://www.rust-lang.org:40/foo/bar?query#fragment");
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! The `try_into` method is used to ensure that each string is syntactically correct with regard to its corresponding component (for instance, it is not possible to replace `"query"` with `"query?"` since `?` is not a valid query character).
@@ -93,14 +84,11 @@
 //! It is possible to access the segments of a path using the iterator returned by the `segments` method.
 //!
 //! ```rust
-//! # use iref::Iri;
-//! # fn main() -> Result<(), iref::IriError<&'static str>> {
-//! # let iri = Iri::new("https://www.rust-lang.org/foo/bar?query#frag")?;
-//! for segment in iri.path().segments() {
-//!   println!("{}", segment);
+//! use iri_rs::Iri;
+//! let iri = Iri::parse("https://www.rust-lang.org/foo/bar?query#frag").unwrap();
+//! for segment in iri.path_segments() {
+//!     println!("{}", segment);
 //! }
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! One can use the `normalized_segments` method to iterate over the normalized
@@ -108,19 +96,10 @@
 //! In addition, it is possible to push or pop segments to a path using the
 //! corresponding methods:
 //! ```rust
-//! # use iref::IriBuf;
-//! # fn main() -> Result<(), iref::IriError<std::borrow::Cow<'static, str>>> {
-//! let mut iri = IriBuf::new("https://rust-lang.org/a/c".to_string())?;
-//! let mut path = iri.path_mut();
-//!
-//! path.pop();
-//! path.push("b".try_into()?);
-//! path.push("c".try_into()?);
-//! path.push("".try_into()?); // the empty segment is valid.
-//!
+//! use iri_rs::IriBuf;
+//! let mut iri = IriBuf::new("https://rust-lang.org/a/c").unwrap();
+//! iri.set_path("/a/b/c/").unwrap();
 //! assert_eq!(iri.path(), "/a/b/c/");
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! ### IRI references
@@ -130,18 +109,11 @@
 //! Contrarily to regular IRIs, relative IRI references may have no scheme.
 //!
 //! ```rust
-//! # use iref::{Iri, IriRef, IriRefBuf};
-//! # fn main() -> Result<(), iref::IriError<&'static str>> {
-//! let mut iri_ref = IriRefBuf::default(); // an IRI reference can be empty.
-//!
-//! // An IRI reference with a scheme is a valid IRI.
-//! iri_ref.set_scheme(Some("https".try_into()?));
-//! let iri: &Iri = iri_ref.as_iri().unwrap();
-//!
-//! // An IRI can be safely converted into an IRI reference.
-//! let iri_ref: &IriRef = iri.into();
-//! # Ok(())
-//! # }
+//! use iri_rs::{IriRef, IriRefBuf};
+//! let mut iri_ref = IriRefBuf::default(); // empty reference.
+//! iri_ref.set_scheme(Some("https")).unwrap();
+//! iri_ref.set_authority(Some("example.com")).unwrap();
+//! assert!(iri_ref.as_iri().is_some());
 //! ```
 //!
 //! Given a base IRI, references can be resolved into a regular IRI using the
@@ -150,19 +122,15 @@
 //! This crate provides a *strict* implementation of this algorithm.
 //!
 //! ```rust
-//! # use iref::{Iri, IriRef, IriRefBuf};
-//! # fn main() -> Result<(), iref::IriError<::std::borrow::Cow<'static, str>>> {
-//! let base_iri = Iri::new("http://a/b/c/d;p?q")?;
-//! let mut iri_ref = IriRefBuf::new("g;x=1/../y".to_string())?;
+//! use iri_rs::{Iri, IriRefBuf};
+//! let base_iri = Iri::parse("http://a/b/c/d;p?q").unwrap();
+//! let mut iri_ref = IriRefBuf::new("g;x=1/../y").unwrap();
 //!
-//! // non mutating resolution.
-//! assert_eq!(iri_ref.resolved(base_iri), "http://a/b/c/y");
+//! let resolved = iri_ref.resolved(&base_iri).unwrap();
+//! assert_eq!(resolved, "http://a/b/c/y");
 //!
-//! // in-place resolution.
-//! iri_ref.resolve(base_iri);
+//! iri_ref.resolve(&base_iri).unwrap();
 //! assert_eq!(iri_ref, "http://a/b/c/y");
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! This crate implements

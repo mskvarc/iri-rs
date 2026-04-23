@@ -1,7 +1,7 @@
-use iri_rs::{Iri, IriError};
+use iri_rs::{InvalidIri, Iri};
 
-fn main() -> Result<(), IriError<&'static str>> {
-    let iri = Iri::new("https://www.rust-lang.org/foo/bar?query#frag")?;
+fn main() -> Result<(), InvalidIri<&'static str>> {
+    let iri = Iri::parse("https://www.rust-lang.org/foo/bar?query#frag")?;
 
     println!("scheme: {}", iri.scheme());
     println!("authority: {}", iri.authority().unwrap());

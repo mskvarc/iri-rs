@@ -9,7 +9,7 @@ fn bench_parse(c: &mut Criterion) {
     let mut g = c.benchmark_group("facade_parse/iri_borrowed");
     for case in IRI_CORPUS {
         g.bench_with_input(BenchmarkId::from_parameter(case.label), case.input, |b, s| {
-            b.iter(|| Iri::new(black_box(s)).ok());
+            b.iter(|| Iri::parse(black_box(s)).ok());
         });
     }
     g.finish();
@@ -25,7 +25,7 @@ fn bench_parse(c: &mut Criterion) {
     let mut g = c.benchmark_group("facade_parse/iri_ref_borrowed");
     for case in IRI_CORPUS {
         g.bench_with_input(BenchmarkId::from_parameter(case.label), case.input, |b, s| {
-            b.iter(|| IriRef::new(black_box(s)).ok());
+            b.iter(|| IriRef::parse(black_box(s)).ok());
         });
     }
     g.finish();
@@ -40,8 +40,8 @@ fn bench_parse(c: &mut Criterion) {
 
     let mut g = c.benchmark_group("facade_parse/uri_borrowed");
     for case in URI_CORPUS {
-        g.bench_with_input(BenchmarkId::from_parameter(case.label), case.input.as_bytes(), |b, bytes| {
-            b.iter(|| Uri::new(black_box(bytes)).ok());
+        g.bench_with_input(BenchmarkId::from_parameter(case.label), case.input, |b, s| {
+            b.iter(|| Uri::parse(black_box(s)).ok());
         });
     }
     g.finish();
@@ -56,8 +56,8 @@ fn bench_parse(c: &mut Criterion) {
 
     let mut g = c.benchmark_group("facade_parse/uri_ref_borrowed");
     for case in URI_CORPUS {
-        g.bench_with_input(BenchmarkId::from_parameter(case.label), case.input.as_bytes(), |b, bytes| {
-            b.iter(|| UriRef::new(black_box(bytes)).ok());
+        g.bench_with_input(BenchmarkId::from_parameter(case.label), case.input, |b, s| {
+            b.iter(|| UriRef::parse(black_box(s)).ok());
         });
     }
     g.finish();
@@ -73,7 +73,7 @@ fn bench_parse(c: &mut Criterion) {
     let mut g = c.benchmark_group("facade_parse/reject_invalid");
     for case in INVALID {
         g.bench_with_input(BenchmarkId::from_parameter(case.label), case.input, |b, s| {
-            b.iter(|| IriRef::new(black_box(s)).err());
+            b.iter(|| IriRef::parse(black_box(s)).err());
         });
     }
     g.finish();

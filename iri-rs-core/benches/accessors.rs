@@ -9,21 +9,24 @@ use std::{
 mod corpus;
 use corpus::{IRI_CORPUS, URI_CORPUS};
 
-fn parsed_iris() -> Vec<(&'static str, &'static Iri)> {
-    IRI_CORPUS.iter().filter_map(|c| Iri::new(c.input).ok().map(|i| (c.label, i))).collect()
+fn parsed_iris() -> Vec<(&'static str, Iri<&'static str>)> {
+    IRI_CORPUS
+        .iter()
+        .filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i)))
+        .collect()
 }
 
-fn parsed_uris() -> Vec<(&'static str, &'static Uri)> {
+fn parsed_uris() -> Vec<(&'static str, Uri<&'static str>)> {
     URI_CORPUS
         .iter()
-        .filter_map(|c| Uri::new(c.input.as_bytes()).ok().map(|u| (c.label, u)))
+        .filter_map(|c| Uri::parse(c.input).ok().map(|u| (c.label, u)))
         .collect()
 }
 
 fn iri_bufs() -> Vec<(&'static str, IriBuf)> {
     IRI_CORPUS
         .iter()
-        .filter_map(|c| IriBuf::new(c.input.to_string()).ok().map(|b| (c.label, b)))
+        .filter_map(|c| IriBuf::new(c.input).ok().map(|b| (c.label, b)))
         .collect()
 }
 
@@ -38,7 +41,6 @@ fn bench_component_extract(c: &mut Criterion) {
     let iris = parsed_iris();
     let uris = parsed_uris();
 
-    // Per-field extraction, summed so the compiler can't elide.
     let mut g = c.benchmark_group("accessors/iri_fields_each");
     for (label, iri) in &iris {
         g.bench_with_input(BenchmarkId::from_parameter(label), iri, |b, iri| {
@@ -50,22 +52,6 @@ fn bench_component_extract(c: &mut Criterion) {
                 let q = iri.query().map(|x| x.as_bytes().len()).unwrap_or(0);
                 let f = iri.fragment().map(|x| x.as_bytes().len()).unwrap_or(0);
                 s + a + p + q + f
-            });
-        });
-    }
-    g.finish();
-
-    // Single-pass parts() call.
-    let mut g = c.benchmark_group("accessors/iri_parts_one_shot");
-    for (label, iri) in &iris {
-        g.bench_with_input(BenchmarkId::from_parameter(label), iri, |b, iri| {
-            b.iter(|| {
-                let parts = black_box(*iri).parts();
-                parts.scheme.as_bytes().len()
-                    + parts.authority.map(|x| x.as_bytes().len()).unwrap_or(0)
-                    + parts.path.as_bytes().len()
-                    + parts.query.map(|x| x.as_bytes().len()).unwrap_or(0)
-                    + parts.fragment.map(|x| x.as_bytes().len()).unwrap_or(0)
             });
         });
     }
@@ -91,7 +77,6 @@ fn bench_component_extract(c: &mut Criterion) {
 fn bench_equality(c: &mut Criterion) {
     let iris = parsed_iris();
 
-    // Equal: same side.
     let mut g = c.benchmark_group("eq/iri_same");
     for (label, iri) in &iris {
         g.bench_with_input(BenchmarkId::from_parameter(label), iri, |b, iri| {
@@ -100,8 +85,6 @@ fn bench_equality(c: &mut Criterion) {
     }
     g.finish();
 
-    // Mixed: pairwise neighbours, almost always different. Exercises the
-    // early-exit path of PartialEq.
     let mut g = c.benchmark_group("eq/iri_mixed");
     for i in 0..iris.len() {
         let (label, a) = iris[i];

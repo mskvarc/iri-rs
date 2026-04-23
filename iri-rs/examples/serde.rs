@@ -1,4 +1,4 @@
-use iref::{IriBuf, IriRef};
+use iri_rs::{IriBuf, IriRefBuf};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -7,9 +7,8 @@ struct Foo {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Bar<'a> {
-    #[serde(borrow)] // See <https://serde.rs/lifetimes.html#borrowing-data-in-a-derived-impl>.
-    iri_ref: &'a IriRef,
+struct Bar {
+    iri_ref: IriRefBuf,
 }
 
 fn main() {
