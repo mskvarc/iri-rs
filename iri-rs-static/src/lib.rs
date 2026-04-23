@@ -28,21 +28,21 @@ use quote::quote;
 /// This macro expects a single string literal token representing the URI.
 #[proc_macro]
 pub fn uri(tokens: TokenStream) -> TokenStream {
-	match syn::parse::<syn::LitStr>(tokens) {
-		Ok(lit) => match UriBuf::new(lit.value().into_bytes()) {
-			Ok(uri) => {
-				let value = uri.as_bytes();
-				quote! {
-					unsafe {
-						::iref::Uri::new_unchecked(&[#(#value),*])
-					}
-				}
-				.into()
-			}
-			Err(_) => produce_error("invalid URI"),
-		},
-		Err(e) => e.to_compile_error().into(),
-	}
+    match syn::parse::<syn::LitStr>(tokens) {
+        Ok(lit) => match UriBuf::new(lit.value().into_bytes()) {
+            Ok(uri) => {
+                let value = uri.as_bytes();
+                quote! {
+                    unsafe {
+                        ::iref::Uri::new_unchecked(&[#(#value),*])
+                    }
+                }
+                .into()
+            }
+            Err(_) => produce_error("invalid URI"),
+        },
+        Err(e) => e.to_compile_error().into(),
+    }
 }
 
 /// Build an URI reference with a `'static` lifetime at compile time.
@@ -50,21 +50,21 @@ pub fn uri(tokens: TokenStream) -> TokenStream {
 /// This macro expects a single string literal token representing the URI reference.
 #[proc_macro]
 pub fn uri_ref(tokens: TokenStream) -> TokenStream {
-	match syn::parse::<syn::LitStr>(tokens) {
-		Ok(lit) => match UriRefBuf::new(lit.value().into_bytes()) {
-			Ok(uri_ref) => {
-				let value = uri_ref.as_bytes();
-				quote! {
-					unsafe {
-						::iref::UriRef::new_unchecked(&[#(#value),*])
-					}
-				}
-				.into()
-			}
-			Err(_) => produce_error("invalid URI reference"),
-		},
-		Err(e) => e.to_compile_error().into(),
-	}
+    match syn::parse::<syn::LitStr>(tokens) {
+        Ok(lit) => match UriRefBuf::new(lit.value().into_bytes()) {
+            Ok(uri_ref) => {
+                let value = uri_ref.as_bytes();
+                quote! {
+                    unsafe {
+                        ::iref::UriRef::new_unchecked(&[#(#value),*])
+                    }
+                }
+                .into()
+            }
+            Err(_) => produce_error("invalid URI reference"),
+        },
+        Err(e) => e.to_compile_error().into(),
+    }
 }
 
 /// Build an IRI with a `'static` lifetime at compile time.
@@ -72,21 +72,21 @@ pub fn uri_ref(tokens: TokenStream) -> TokenStream {
 /// This macro expects a single string literal token representing the IRI.
 #[proc_macro]
 pub fn iri(tokens: TokenStream) -> TokenStream {
-	match syn::parse::<syn::LitStr>(tokens) {
-		Ok(lit) => match IriBuf::new(lit.value()) {
-			Ok(iri) => {
-				let value = iri.as_str();
-				quote! {
-					unsafe {
-						::iref::Iri::new_unchecked(#value)
-					}
-				}
-				.into()
-			}
-			Err(_) => produce_error("invalid IRI"),
-		},
-		Err(e) => e.to_compile_error().into(),
-	}
+    match syn::parse::<syn::LitStr>(tokens) {
+        Ok(lit) => match IriBuf::new(lit.value()) {
+            Ok(iri) => {
+                let value = iri.as_str();
+                quote! {
+                    unsafe {
+                        ::iref::Iri::new_unchecked(#value)
+                    }
+                }
+                .into()
+            }
+            Err(_) => produce_error("invalid IRI"),
+        },
+        Err(e) => e.to_compile_error().into(),
+    }
 }
 
 /// Build an IRI reference with a `'static` lifetime at compile time.
@@ -94,23 +94,23 @@ pub fn iri(tokens: TokenStream) -> TokenStream {
 /// This macro expects a single string literal token representing the IRI reference.
 #[proc_macro]
 pub fn iri_ref(tokens: TokenStream) -> TokenStream {
-	match syn::parse::<syn::LitStr>(tokens) {
-		Ok(lit) => match IriRefBuf::new(lit.value()) {
-			Ok(iri_ref) => {
-				let value = iri_ref.as_str();
-				quote! {
-					unsafe {
-						::iref::IriRef::new_unchecked(#value)
-					}
-				}
-				.into()
-			}
-			Err(_) => produce_error("invalid IRI reference"),
-		},
-		Err(e) => e.to_compile_error().into(),
-	}
+    match syn::parse::<syn::LitStr>(tokens) {
+        Ok(lit) => match IriRefBuf::new(lit.value()) {
+            Ok(iri_ref) => {
+                let value = iri_ref.as_str();
+                quote! {
+                    unsafe {
+                        ::iref::IriRef::new_unchecked(#value)
+                    }
+                }
+                .into()
+            }
+            Err(_) => produce_error("invalid IRI reference"),
+        },
+        Err(e) => e.to_compile_error().into(),
+    }
 }
 
 fn produce_error(msg: &str) -> TokenStream {
-	format!("compile_error!(\"{}\")", msg).parse().unwrap()
+    format!("compile_error!(\"{}\")", msg).parse().unwrap()
 }
