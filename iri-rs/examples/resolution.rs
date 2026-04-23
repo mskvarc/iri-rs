@@ -1,6 +1,5 @@
+use iri_rs::{Iri, IriError, IriRefBuf};
 use std::borrow::Cow;
-
-use iref::{Iri, IriError, IriRefBuf};
 
 fn main() -> Result<(), IriError<Cow<'static, str>>> {
 	let base_iri = Iri::new("http://a/b/c/d;p?q")?;

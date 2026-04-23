@@ -1,6 +1,5 @@
+use iri_rs::{IriBuf, IriError};
 use std::borrow::Cow;
-
-use iref::{IriBuf, IriError};
 
 fn main() -> Result<(), IriError<Cow<'static, str>>> {
 	let mut iri = IriBuf::new("https://www.rust-lang.org".to_string())?;

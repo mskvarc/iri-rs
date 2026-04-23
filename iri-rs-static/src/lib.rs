@@ -19,7 +19,7 @@
 //! const IRI: &'static Iri = iri!("https://www.rust-lang.org/foo/bar#frag");
 //! const IRI_REF: &'static IriRef = iri_ref!("/foo/bar#frag");
 //! ```
-use iref_core::{IriBuf, IriRefBuf, UriBuf, UriRefBuf};
+use iri_rs_core::{IriBuf, IriRefBuf, UriBuf, UriRefBuf};
 use proc_macro::TokenStream;
 use quote::quote;
 

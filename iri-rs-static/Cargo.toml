@@ -1,0 +1,20 @@
+[package]
+name = "iri-rs-static"
+description = "Macros for the `iref` library"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+iri-rs-core.workspace = true
+quote = "1.0.45"
+syn = "2.0.117"

@@ -1,4 +1,4 @@
-use iref::{Iri, IriError};
+use iri_rs::{Iri, IriError};
 
 fn main() -> Result<(), IriError<&'static str>> {
 	let iri = Iri::new("https://www.rust-lang.org/foo/bar?query#frag")?;

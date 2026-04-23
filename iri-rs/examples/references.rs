@@ -1,4 +1,4 @@
-use iref::{Iri, IriRef, IriRefBuf};
+use iri_rs::{Iri, IriRef, IriRefBuf};
 
 fn main() {
 	let mut iri_ref = IriRefBuf::default(); // an IRI reference can be empty.

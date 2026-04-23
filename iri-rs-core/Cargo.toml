@@ -1,15 +1,15 @@
 [package]
-name = "iref-core"
+name = "iri-rs-core"
 description = "Uniform & Internationalized Resource Identifiers (URIs/IRIs), borrowed and owned."
-repository = "https://github.com/timothee-haudebourg/iref"
-documentation = "https://docs.rs/iref"
-readme = "README.md"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
-categories.workspace = true
-keywords.workspace = true
 license.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [features]
 default = []
@@ -18,10 +18,10 @@ data = ["dep:base64"]
 hashbrown = ["dep:hashbrown"]
 
 [dependencies]
-pct-str = "2.0"
-smallvec = "1.2"
-thiserror = "1.0.40"
-static-regular-grammar = "2.0.2"
-serde = { version = "1.0", optional = true }
-hashbrown = { version = "0.14.0", optional = true }
 base64 = { version = "0.22.1", optional = true }
+hashbrown = { version = "0.14.0", optional = true }
+pct-str = "2.0"
+serde = { version = "1.0", optional = true }
+smallvec = "1.2"
+static-regular-grammar = "2.0.2"
+thiserror = "1.0.40"

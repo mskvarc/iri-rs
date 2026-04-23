@@ -203,7 +203,7 @@
 //! Thanks to the [`pct-str` crate](https://crates.io/crates/pct-str),
 //! percent encoded characters are correctly handled.
 //! The two IRIs `http://example.org` and `http://exa%6dple.org` **are** equivalent.
-pub use iref_core::*;
+pub use iri_rs_core::*;
 
-#[cfg(feature = "macros")]
-pub use iref_macros::*;
+#[cfg(feature = "static")]
+pub use iri_rs_static::*;

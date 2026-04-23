@@ -1,49 +1,21 @@
+[workspace]
+members = ["iri-rs", "iri-rs-core", "iri-rs-static"]
+resolver = "3"
+
 [workspace.package]
-version = "3.2.2"
-edition = "2021"
-authors = ["Timothée Haudebourg <author@haudebourg.net>"]
-categories = ["web-programming", "internationalization"]
-keywords = ["iri", "uri", "url", "resource", "identifier"]
-license = "MIT/Apache-2.0"
-
-[package]
-name = "iref"
-description = "Uniform & Internationalized Resource Identifiers (URIs/IRIs), borrowed and owned."
-repository = "https://github.com/timothee-haudebourg/iref"
-documentation = "https://docs.rs/iref"
+version = "3.3.0"
+edition = "2024"
+rust-version = "1.85.0"
+authors = [
+    "Timothée Haudebourg <author@haudebourg.net>",
+    "Matej Škvarč <matej.skvarc@senlab.io>",
+]
+license = "MIT OR Apache-2.0"
 readme = "README.md"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-categories.workspace = true
-keywords.workspace = true
-license.workspace = true
-
-[features]
-default = []
-macros = ["dep:iref-macros"]
-serde = ["iref-core/serde"]
-data = ["iref-core/data"]
-hashbrown = ["iref-core/hashbrown"]
+repository = "https://github.com/mskvarc/iri-rs/"
+keywords = ["iri", "uri", "url", "resource", "identifier"]
+categories = ["web-programming", "internationalization"]
 
 [workspace.dependencies]
-iref-core = { path = "crates/core", version = "3.2.2" }
-iref-macros = { path = "crates/macros", version = "3.2.2" }
-
-[dependencies]
-iref-core.workspace = true
-iref-macros = { workspace = true, optional = true }
-
-[dev-dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-
-[workspace]
-members = ["crates/*"]
-
-[[example]]
-name = "serde"
-required-features = [ "serde" ]
-
-[package.metadata.docs.rs]
-all-features = true
+iri-rs-core = { path = "iri-rs-core", version = "3.3.0" }
+iri-rs-static = { path = "iri-rs-static", version = "3.3.0" }
