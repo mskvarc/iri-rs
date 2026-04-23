@@ -246,8 +246,12 @@ pub fn normalized_hash<H: Hasher>(iri: &str, p: Positions, state: &mut H) {
         }
     }
     let path = &iri[p.authority_end..p.path_end];
-    let np = normalize_path(path);
-    hash_pct_unreserved(&np, state);
+    if memchr::memchr(b'.', path.as_bytes()).is_none() {
+        hash_pct_unreserved(path, state);
+    } else {
+        let np = normalize_path(path);
+        hash_pct_unreserved(&np, state);
+    }
     if p.query_end > p.path_end {
         state.write(b"?");
         hash_pct_unreserved(&iri[p.path_end + 1..p.query_end], state);
