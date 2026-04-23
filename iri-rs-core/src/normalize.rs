@@ -2,7 +2,7 @@
 
 use std::{
     cmp::Ordering,
-    hash::{Hash, Hasher},
+    hash::Hasher,
 };
 
 use pct::PctStr;
@@ -222,7 +222,7 @@ pub fn pct_unreserved_eq(a: &str, b: &str) -> bool {
     // any `%` is followed by two hex digits.
     let pa = unsafe { PctStr::new_unchecked(a) };
     let pb = unsafe { PctStr::new_unchecked(b) };
-    pa == pb
+    pa.eq_rfc3986(pb)
 }
 
 pub fn normalized_hash<H: Hasher>(iri: &str, p: Positions, state: &mut H) {
@@ -275,7 +275,7 @@ fn hash_pct_unreserved<H: Hasher>(s: &str, state: &mut H) {
     }
     // SAFETY: input is a validated substring of a parsed IRI.
     let ps = unsafe { PctStr::new_unchecked(s) };
-    ps.hash(state);
+    ps.hash_rfc3986(state);
 }
 
 #[cfg(test)]
