@@ -25,9 +25,22 @@ iri-rs-core.workspace = true
 iri-rs-static = { workspace = true, optional = true }
 
 [dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 
 [[example]]
 name = "serde"
 required-features = ["serde"]
+
+[[bench]]
+name = "parse"
+harness = false
+
+[[bench]]
+name = "accessors"
+harness = false
+
+[[bench]]
+name = "resolve"
+harness = false

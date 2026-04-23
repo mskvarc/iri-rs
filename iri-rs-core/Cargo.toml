@@ -23,3 +23,26 @@ serde = { version = "1.0", optional = true }
 smallvec = "1.2"
 static-regular-grammar = "2.0.2"
 thiserror = "1.0.40"
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
+[[bench]]
+name = "parse"
+harness = false
+
+[[bench]]
+name = "accessors"
+harness = false
+
+[[bench]]
+name = "resolve"
+harness = false
+
+[[bench]]
+name = "normalize"
+harness = false
+
+[[bench]]
+name = "mutate"
+harness = false
