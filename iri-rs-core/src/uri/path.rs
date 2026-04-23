@@ -31,9 +31,9 @@ impl PathImpl for Path {
 
     type Owned = PathBuf;
 
-    unsafe fn new_unchecked(bytes: &[u8]) -> &Self {
+    unsafe fn new_unchecked(bytes: &[u8]) -> &Self { unsafe {
         Self::new_unchecked(bytes)
-    }
+    }}
 
     #[inline(always)]
     fn as_bytes(&self) -> &[u8] {
@@ -113,7 +113,7 @@ impl Path {
     /// [`Self::normalized_segments`] to iterate over the normalized segments
     /// of a path.
     #[inline]
-    pub fn segments(&self) -> Segments {
+    pub fn segments(&self) -> Segments<'_> {
         Segments(PathImpl::segments(self))
     }
 
@@ -123,7 +123,7 @@ impl Path {
     /// the usual path semantics for dot segments. This may be expensive for
     /// large paths since it will need to internally normalize the path first.
     #[inline]
-    pub fn normalized_segments(&self) -> NormalizedSegments {
+    pub fn normalized_segments(&self) -> NormalizedSegments<'_> {
         NormalizedSegments(PathImpl::normalized_segments(self))
     }
 
@@ -372,11 +372,11 @@ impl PathBuf {
     /// using the original `PathBuf` after dropping the `&mut Vec` may violate
     /// memory safety, as the rest of the library assumes that `PathBuf` are
     /// valid paths.
-    pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+    pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> { unsafe {
         PathBufImpl::as_mut_vec(self)
-    }
+    }}
 
-    pub fn as_path_mut(&mut self) -> PathMut {
+    pub fn as_path_mut(&mut self) -> PathMut<'_> {
         PathMut::from_path(self)
     }
 

@@ -14,7 +14,7 @@ pub trait PathBufImpl: 'static + Default {
 
     fn as_bytes(&self) -> &[u8];
 
-    fn as_path_mut(&mut self) -> PathMutImpl<Self::Borrowed> {
+    fn as_path_mut(&mut self) -> PathMutImpl<'_, Self::Borrowed> {
         PathMutImpl::from_path(self)
     }
 
@@ -124,7 +124,7 @@ pub trait PathImpl: 'static {
     /// # Safety
     ///
     /// A segment must start at the given offset.
-    unsafe fn segment_at(&self, offset: usize) -> (&Self::Segment, usize) {
+    unsafe fn segment_at(&self, offset: usize) -> (&Self::Segment, usize) { unsafe {
         let mut i = offset;
 
         let bytes = self.as_bytes();
@@ -133,7 +133,7 @@ pub trait PathImpl: 'static {
         }
 
         (<Self::Segment as SegmentImpl>::new_unchecked(&bytes[offset..i]), i + 1)
-    }
+    }}
 
     /// Returns the segment following a previous segment ending at the given
     /// offset.
@@ -142,10 +142,10 @@ pub trait PathImpl: 'static {
     ///
     /// - as the start of a segment; or
     /// - at `path.as_bytes().len() + 1`.
-    unsafe fn next_segment_from(&self, offset: usize) -> Option<(&Self::Segment, usize)> {
+    unsafe fn next_segment_from(&self, offset: usize) -> Option<(&Self::Segment, usize)> { unsafe {
         let bytes = self.as_bytes();
         if offset <= bytes.len() { Some(self.segment_at(offset)) } else { None }
-    }
+    }}
 
     /// Returns the segment preceding the segment starting at the given offset,
     /// and its offset.
@@ -155,7 +155,7 @@ pub trait PathImpl: 'static {
     /// The offset must be either:
     /// - as the start of a segment; or
     /// - at `path.as_bytes().len() + 1`.
-    unsafe fn previous_segment_from(&self, offset: usize) -> Option<(&Self::Segment, usize)> {
+    unsafe fn previous_segment_from(&self, offset: usize) -> Option<(&Self::Segment, usize)> { unsafe {
         // //a/b
         if offset >= 2 {
             let first_offset = self.first_segment_offset();
@@ -176,7 +176,7 @@ pub trait PathImpl: 'static {
             // offset is at the first segment.
             None
         }
-    }
+    }}
 
     /// Produces an iterator over the segments of the IRI path.
     ///
@@ -188,7 +188,7 @@ pub trait PathImpl: 'static {
     /// [`Self::normalized_segments`] to iterate over the normalized segments
     /// of a path.
     #[inline]
-    fn segments(&self) -> SegmentsImpl<Self> {
+    fn segments(&self) -> SegmentsImpl<'_, Self> {
         if self.is_empty() {
             SegmentsImpl::Empty
         } else {
@@ -206,7 +206,7 @@ pub trait PathImpl: 'static {
     /// the usual path semantics for dot segments. This may be expensive for
     /// large paths since it will need to internally normalize the path first.
     #[inline]
-    fn normalized_segments(&self) -> NormalizedSegmentsImpl<Self> {
+    fn normalized_segments(&self) -> NormalizedSegmentsImpl<'_, Self> {
         NormalizedSegmentsImpl::new(self)
     }
 
@@ -411,7 +411,7 @@ const NORMALIZE_STACK_SIZE: usize = 16;
 pub struct NormalizedSegmentsImpl<'a, P: ?Sized + PathImpl>(smallvec::IntoIter<[&'a P::Segment; NORMALIZE_STACK_SIZE]>);
 
 impl<'a, P: ?Sized + PathImpl> NormalizedSegmentsImpl<'a, P> {
-    fn new(path: &'a P) -> NormalizedSegmentsImpl<P> {
+    fn new(path: &'a P) -> NormalizedSegmentsImpl<'a, P> {
         let relative = path.is_relative();
         let mut stack = SmallVec::<[&'a P::Segment; NORMALIZE_STACK_SIZE]>::new();
 

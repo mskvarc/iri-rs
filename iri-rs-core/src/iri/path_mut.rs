@@ -21,9 +21,9 @@ impl<'a> PathMut<'a> {
     ///
     /// The buffer content between in the range `start..end` must be a valid
     /// IRI path.
-    pub unsafe fn new(buffer: &'a mut Vec<u8>, start: usize, end: usize) -> Self {
+    pub unsafe fn new(buffer: &'a mut Vec<u8>, start: usize, end: usize) -> Self { unsafe {
         Self(PathMutImpl::new(buffer, start, end))
-    }
+    }}
 
     pub(crate) fn from_impl(i: PathMutImpl<'a, Path>) -> Self {
         Self(i)

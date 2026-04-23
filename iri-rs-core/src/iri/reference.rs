@@ -53,7 +53,7 @@ pub struct IriRefParts<'a> {
 }
 
 impl IriRef {
-    pub fn parts(&self) -> IriRefParts {
+    pub fn parts(&self) -> IriRefParts<'_> {
         let bytes = self.as_bytes();
         let ranges = parse::reference_parts(bytes, 0);
 
@@ -295,13 +295,13 @@ impl RiRefBufImpl for IriRefBuf {
     type Ri = Iri;
     type RiBuf = IriBuf;
 
-    unsafe fn new_unchecked(bytes: Vec<u8>) -> Self {
+    unsafe fn new_unchecked(bytes: Vec<u8>) -> Self { unsafe {
         Self::new_unchecked(String::from_utf8_unchecked(bytes))
-    }
+    }}
 
-    unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+    unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> { unsafe {
         self.0.as_mut_vec()
-    }
+    }}
 
     fn into_bytes(self) -> Vec<u8> {
         self.0.into_bytes()
@@ -324,9 +324,9 @@ impl IriRefBuf {
     ///
     /// The input bytes must be a valid IRI reference.
     #[inline]
-    pub unsafe fn from_vec_unchecked(buffer: Vec<u8>) -> Self {
+    pub unsafe fn from_vec_unchecked(buffer: Vec<u8>) -> Self { unsafe {
         Self::new_unchecked(String::from_utf8_unchecked(buffer))
-    }
+    }}
 
     /// Converts this IRI reference into an IRI, if possible.
     pub fn try_into_iri(self) -> Result<IriBuf, InvalidIri<Self>> {
@@ -354,15 +354,15 @@ impl IriRefBuf {
     ///
     /// The caller must ensure that once the mutable reference is dropped, its
     /// content is still a valid IRI reference.
-    pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+    pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> { unsafe {
         self.0.as_mut_vec()
-    }
+    }}
 
-    pub fn path_mut(&mut self) -> PathMut {
+    pub fn path_mut(&mut self) -> PathMut<'_> {
         PathMut::from_impl(RiRefBufImpl::path_mut(self))
     }
 
-    pub fn authority_mut(&mut self) -> Option<AuthorityMut> {
+    pub fn authority_mut(&mut self) -> Option<AuthorityMut<'_>> {
         RiRefBufImpl::authority_mut(self).map(AuthorityMut::from_impl)
     }
 

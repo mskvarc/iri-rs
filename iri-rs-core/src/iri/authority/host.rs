@@ -24,9 +24,9 @@ use crate::common::authority::HostImpl;
 pub struct Host(str);
 
 impl HostImpl for Host {
-    unsafe fn new_unchecked(bytes: &[u8]) -> &Self {
+    unsafe fn new_unchecked(bytes: &[u8]) -> &Self { unsafe {
         Self::new_unchecked(std::str::from_utf8_unchecked(bytes))
-    }
+    }}
 
     fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()

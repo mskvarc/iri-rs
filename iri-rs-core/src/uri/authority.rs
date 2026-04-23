@@ -32,9 +32,9 @@ impl AuthorityImpl for Authority {
     type UserInfo = UserInfo;
     type Host = Host;
 
-    unsafe fn new_unchecked(bytes: &[u8]) -> &Self {
+    unsafe fn new_unchecked(bytes: &[u8]) -> &Self { unsafe {
         Self::new_unchecked(bytes)
-    }
+    }}
 
     fn as_bytes(&self) -> &[u8] {
         &self.0
@@ -61,7 +61,7 @@ impl Authority {
         AuthorityImpl::port(self)
     }
 
-    pub fn parts(&self) -> AuthorityParts {
+    pub fn parts(&self) -> AuthorityParts<'_> {
         let ranges = AuthorityImpl::parts(self);
 
         AuthorityParts {

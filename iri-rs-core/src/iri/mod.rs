@@ -155,7 +155,7 @@ impl RiRefImpl for Iri {
 impl RiImpl for Iri {}
 
 impl Iri {
-    pub fn parts(&self) -> IriParts {
+    pub fn parts(&self) -> IriParts<'_> {
         let bytes = self.as_bytes();
         let ranges = parse::parts(bytes, 0);
 
@@ -396,13 +396,13 @@ impl RiRefBufImpl for IriBuf {
     type Ri = Iri;
     type RiBuf = Self;
 
-    unsafe fn new_unchecked(bytes: Vec<u8>) -> Self {
+    unsafe fn new_unchecked(bytes: Vec<u8>) -> Self { unsafe {
         Self::new_unchecked(String::from_utf8_unchecked(bytes))
-    }
+    }}
 
-    unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+    unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> { unsafe {
         self.0.as_mut_vec()
-    }
+    }}
 
     fn into_bytes(self) -> Vec<u8> {
         self.0.into_bytes()
@@ -448,15 +448,15 @@ impl IriBuf {
     ///
     /// The caller must ensure that once the mutable reference is dropped, its
     /// content is still a valid IRI.
-    pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+    pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> { unsafe {
         self.0.as_mut_vec()
-    }
+    }}
 
-    pub fn path_mut(&mut self) -> PathMut {
+    pub fn path_mut(&mut self) -> PathMut<'_> {
         PathMut::from_impl(RiRefBufImpl::path_mut(self))
     }
 
-    pub fn authority_mut(&mut self) -> Option<AuthorityMut> {
+    pub fn authority_mut(&mut self) -> Option<AuthorityMut<'_>> {
         RiRefBufImpl::authority_mut(self).map(AuthorityMut::from_impl)
     }
 

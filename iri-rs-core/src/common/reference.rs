@@ -110,7 +110,7 @@ pub trait RiRefImpl {
     }
 
     #[inline]
-    fn suffix(&self, prefix: &Self) -> Option<Suffix<Self>> {
+    fn suffix(&self, prefix: &Self) -> Option<Suffix<'_, Self>> {
         if self.scheme_opt() == prefix.scheme_opt() && self.authority() == prefix.authority() {
             self.path()
                 .suffix(prefix.path())
@@ -145,14 +145,14 @@ pub trait RiRefBufImpl: Sized + RiRefImpl {
     fn into_bytes(self) -> Vec<u8>;
 
     #[inline]
-    unsafe fn replace(&mut self, range: Range<usize>, content: &[u8]) {
+    unsafe fn replace(&mut self, range: Range<usize>, content: &[u8]) { unsafe {
         crate::utils::replace(self.as_mut_vec(), range, content)
-    }
+    }}
 
     #[inline]
-    unsafe fn allocate(&mut self, range: Range<usize>, len: usize) {
+    unsafe fn allocate(&mut self, range: Range<usize>, len: usize) { unsafe {
         crate::utils::allocate_range(self.as_mut_vec(), range, len)
-    }
+    }}
 
     /// Set the scheme of the IRI reference.
     #[inline]
@@ -187,7 +187,7 @@ pub trait RiRefBufImpl: Sized + RiRefImpl {
     }
 
     #[inline]
-    fn authority_mut(&mut self) -> Option<AuthorityMutImpl<Self::Authority>> {
+    fn authority_mut(&mut self) -> Option<AuthorityMutImpl<'_, Self::Authority>> {
         parse::find_authority(self.as_bytes(), 0)
             .ok()
             .map(|range| unsafe { AuthorityMutImpl::new(self.as_mut_vec(), range.start, range.end) })
@@ -243,7 +243,7 @@ pub trait RiRefBufImpl: Sized + RiRefImpl {
     }
 
     #[inline]
-    fn path_mut(&mut self) -> PathMutImpl<Self::Path> {
+    fn path_mut(&mut self) -> PathMutImpl<'_, Self::Path> {
         let range = parse::find_path(self.as_bytes(), 0);
         unsafe { PathMutImpl::new(self.as_mut_vec(), range.start, range.end) }
     }

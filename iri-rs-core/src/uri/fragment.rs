@@ -25,9 +25,9 @@ use crate::common::FragmentImpl;
 pub struct Fragment([u8]);
 
 impl FragmentImpl for Fragment {
-    unsafe fn new_unchecked(bytes: &[u8]) -> &Self {
+    unsafe fn new_unchecked(bytes: &[u8]) -> &Self { unsafe {
         Self::new_unchecked(bytes)
-    }
+    }}
 
     fn as_bytes(&self) -> &[u8] {
         &self.0

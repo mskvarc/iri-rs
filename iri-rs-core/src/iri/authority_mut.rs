@@ -21,9 +21,9 @@ impl<'a> AuthorityMut<'a> {
     ///
     /// The buffer content between the range `start..end` must be a valid
     /// authority.
-    pub unsafe fn new(buffer: &'a mut Vec<u8>, start: usize, end: usize) -> Self {
+    pub unsafe fn new(buffer: &'a mut Vec<u8>, start: usize, end: usize) -> Self { unsafe {
         Self(AuthorityMutImpl::new(buffer, start, end))
-    }
+    }}
 
     pub(crate) fn from_impl(i: AuthorityMutImpl<'a, Authority>) -> Self {
         Self(i)

@@ -53,7 +53,7 @@ pub struct UriRefParts<'a> {
 }
 
 impl UriRef {
-    pub fn parts(&self) -> UriRefParts {
+    pub fn parts(&self) -> UriRefParts<'_> {
         let bytes = self.as_bytes();
         let ranges = parse::reference_parts(bytes, 0);
 
@@ -302,9 +302,9 @@ impl RiRefBufImpl for UriRefBuf {
     type Ri = Uri;
     type RiBuf = UriBuf;
 
-    unsafe fn new_unchecked(bytes: Vec<u8>) -> Self {
+    unsafe fn new_unchecked(bytes: Vec<u8>) -> Self { unsafe {
         Self::new_unchecked(bytes)
-    }
+    }}
 
     unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
         &mut self.0
@@ -347,11 +347,11 @@ impl UriRefBuf {
         }
     }
 
-    pub fn path_mut(&mut self) -> PathMut {
+    pub fn path_mut(&mut self) -> PathMut<'_> {
         PathMut::from_impl(RiRefBufImpl::path_mut(self))
     }
 
-    pub fn authority_mut(&mut self) -> Option<AuthorityMut> {
+    pub fn authority_mut(&mut self) -> Option<AuthorityMut<'_>> {
         RiRefBufImpl::authority_mut(self).map(AuthorityMut::from_impl)
     }
 
