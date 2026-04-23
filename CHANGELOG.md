@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.3.1] - 2026-04-23
+
+### ⚡ Performance
+- Fast path for no dot
+- Add inline attributes
+
+### 📚 Documentation
+- Update changelog
+
+### 🔧 Refactor
+- Avoid cloning
+- Avoid to_string
+- Split validate_authority
+
+### 🧹 Chores
+- Bump version
+
 ## [v3.3.0] - 2026-04-23
 
 ### ⚡ Performance
