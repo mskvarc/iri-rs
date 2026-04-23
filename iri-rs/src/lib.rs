@@ -175,3 +175,6 @@ pub use iri_rs_core::*;
 
 #[cfg(feature = "static")]
 pub use iri_rs_static::*;
+
+#[cfg(feature = "enum")]
+pub use iri_rs_enum::*;

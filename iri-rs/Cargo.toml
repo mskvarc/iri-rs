@@ -17,11 +17,13 @@ all-features = true
 [features]
 default = []
 static = ["dep:iri-rs-static"]
+enum = ["dep:iri-rs-enum"]
 serde = ["iri-rs-core/serde"]
 data = ["iri-rs-core/data"]
 
 [dependencies]
 iri-rs-core.workspace = true
+iri-rs-enum = { workspace = true, optional = true }
 iri-rs-static = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -44,4 +46,3 @@ harness = false
 [[bench]]
 name = "resolve"
 harness = false
-
