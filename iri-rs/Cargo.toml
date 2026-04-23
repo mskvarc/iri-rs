@@ -19,7 +19,6 @@ default = []
 static = ["dep:iri-rs-static"]
 serde = ["iri-rs-core/serde"]
 data = ["iri-rs-core/data"]
-hashbrown = ["iri-rs-core/hashbrown"]
 
 [dependencies]
 iri-rs-core.workspace = true
