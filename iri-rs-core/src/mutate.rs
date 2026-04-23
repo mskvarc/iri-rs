@@ -93,35 +93,45 @@ impl Default for UriRefBuf {
 impl IriBuf {
     pub fn set_scheme(&mut self, scheme: &str) -> Result<(), IriParseError> {
         validate_scheme(scheme)?;
-        let mut r: IriRefBuf = IriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let iri = std::mem::take(&mut self.0.iri);
+        let mut r = IriRefBuf::from_raw_parts(iri, p);
         rebuild(&mut r, Edit::Scheme(Some(scheme.to_string())), true)?;
         *self = Iri::from_raw_parts(r.iri, r.positions);
         Ok(())
     }
 
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
-        let mut r: IriRefBuf = IriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let iri = std::mem::take(&mut self.0.iri);
+        let mut r = IriRefBuf::from_raw_parts(iri, p);
         r.set_authority(authority)?;
         *self = Iri::from_raw_parts(r.iri, r.positions);
         Ok(())
     }
 
     pub fn set_path(&mut self, path: &str) -> Result<(), IriParseError> {
-        let mut r: IriRefBuf = IriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let iri = std::mem::take(&mut self.0.iri);
+        let mut r = IriRefBuf::from_raw_parts(iri, p);
         r.set_path(path)?;
         *self = Iri::from_raw_parts(r.iri, r.positions);
         Ok(())
     }
 
     pub fn set_query(&mut self, query: Option<&str>) -> Result<(), IriParseError> {
-        let mut r: IriRefBuf = IriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let iri = std::mem::take(&mut self.0.iri);
+        let mut r = IriRefBuf::from_raw_parts(iri, p);
         r.set_query(query)?;
         *self = Iri::from_raw_parts(r.iri, r.positions);
         Ok(())
     }
 
     pub fn set_fragment(&mut self, fragment: Option<&str>) -> Result<(), IriParseError> {
-        let mut r: IriRefBuf = IriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let iri = std::mem::take(&mut self.0.iri);
+        let mut r = IriRefBuf::from_raw_parts(iri, p);
         r.set_fragment(fragment)?;
         *self = Iri::from_raw_parts(r.iri, r.positions);
         Ok(())
@@ -192,31 +202,41 @@ impl UriRefBuf {
 
 impl UriBuf {
     pub fn set_scheme(&mut self, scheme: &str) -> Result<(), IriParseError> {
-        let mut r: UriRefBuf = UriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let uri = std::mem::take(&mut self.0.uri);
+        let mut r = UriRefBuf::from_raw_parts(uri, p);
         r.set_scheme(Some(scheme))?;
         *self = Uri::from_raw_parts(r.uri, r.positions);
         Ok(())
     }
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
-        let mut r: UriRefBuf = UriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let uri = std::mem::take(&mut self.0.uri);
+        let mut r = UriRefBuf::from_raw_parts(uri, p);
         r.set_authority(authority)?;
         *self = Uri::from_raw_parts(r.uri, r.positions);
         Ok(())
     }
     pub fn set_path(&mut self, path: &str) -> Result<(), IriParseError> {
-        let mut r: UriRefBuf = UriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let uri = std::mem::take(&mut self.0.uri);
+        let mut r = UriRefBuf::from_raw_parts(uri, p);
         r.set_path(path)?;
         *self = Uri::from_raw_parts(r.uri, r.positions);
         Ok(())
     }
     pub fn set_query(&mut self, query: Option<&str>) -> Result<(), IriParseError> {
-        let mut r: UriRefBuf = UriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let uri = std::mem::take(&mut self.0.uri);
+        let mut r = UriRefBuf::from_raw_parts(uri, p);
         r.set_query(query)?;
         *self = Uri::from_raw_parts(r.uri, r.positions);
         Ok(())
     }
     pub fn set_fragment(&mut self, fragment: Option<&str>) -> Result<(), IriParseError> {
-        let mut r: UriRefBuf = UriRef::from_raw_parts(self.as_str().to_string(), self.positions());
+        let p = self.positions();
+        let uri = std::mem::take(&mut self.0.uri);
+        let mut r = UriRefBuf::from_raw_parts(uri, p);
         r.set_fragment(fragment)?;
         *self = Uri::from_raw_parts(r.uri, r.positions);
         Ok(())
