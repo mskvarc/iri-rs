@@ -27,8 +27,10 @@ fn bench(c: &mut Criterion) {
     }
     g.finish();
 
-    let bufs: Vec<(&str, IriBuf)> =
-        IRI_CORPUS.iter().filter_map(|c| IriBuf::new(c.input.to_string()).ok().map(|b| (c.label, b))).collect();
+    let bufs: Vec<(&str, IriBuf)> = IRI_CORPUS
+        .iter()
+        .filter_map(|c| IriBuf::new(c.input.to_string()).ok().map(|b| (c.label, b)))
+        .collect();
 
     let mut g = c.benchmark_group("facade_accessors/hash");
     for (label, buf) in &bufs {

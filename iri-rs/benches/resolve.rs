@@ -21,11 +21,7 @@ fn bench(c: &mut Criterion) {
     for (r, _) in RFC3986_PAIRS {
         let seed = IriRefBuf::new(r.to_string()).unwrap();
         g.bench_with_input(BenchmarkId::from_parameter(r), &seed, |b, seed| {
-            b.iter_batched_ref(
-                || seed.clone(),
-                |buf| buf.resolve(black_box(base)),
-                BatchSize::SmallInput,
-            );
+            b.iter_batched_ref(|| seed.clone(), |buf| buf.resolve(black_box(base)), BatchSize::SmallInput);
         });
     }
     g.finish();

@@ -22,7 +22,10 @@ pub const IRI_CORPUS: &[Case] = &[
         "http://example.com/aaaa/bbbb/cccc/dddd/eeee/ffff/gggg/hhhh/iiii/jjjj/kkkk/llll/mmmm/nnnn/oooo/pppp/qqqq/rrrr/ssss/tttt/uuuu/vvvv/wwww/xxxx/yyyy/zzzz/resource.html",
     ),
     c("query_many", "http://example.com/p?a=1&b=2&c=3&d=4&e=5&f=6&g=7&h=8"),
-    c("query_long", "http://example.com/search?q=a+very+long+query+string+with+many+terms+and+symbols+%26+reserved"),
+    c(
+        "query_long",
+        "http://example.com/search?q=a+very+long+query+string+with+many+terms+and+symbols+%26+reserved",
+    ),
     c("pct_ascii", "http://example.com/%20%21%2F%3F%23"),
     c("pct_utf8", "http://example.com/%E4%B8%AD%E6%96%87?q=%E6%B5%8B%E8%AF%95"),
     c("idn_jp", "http://例え.テスト/パス/ファイル"),
@@ -53,7 +56,10 @@ pub const URI_CORPUS: &[Case] = &[
         "http://example.com/aaaa/bbbb/cccc/dddd/eeee/ffff/gggg/hhhh/iiii/jjjj/kkkk/llll/mmmm/nnnn/oooo/pppp/qqqq/rrrr/ssss/tttt/uuuu/vvvv/wwww/xxxx/yyyy/zzzz/resource.html",
     ),
     c("query_many", "http://example.com/p?a=1&b=2&c=3&d=4&e=5&f=6&g=7&h=8"),
-    c("query_long", "http://example.com/search?q=a+very+long+query+string+with+many+terms+and+symbols+%26+reserved"),
+    c(
+        "query_long",
+        "http://example.com/search?q=a+very+long+query+string+with+many+terms+and+symbols+%26+reserved",
+    ),
     c("pct_ascii", "http://example.com/%20%21%2F%3F%23"),
     c("pct_utf8", "http://example.com/%E4%B8%AD%E6%96%87?q=%E6%B5%8B%E8%AF%95"),
     c("userinfo_port", "https://user:pass@host.example:8443/x/y"),

@@ -3,7 +3,7 @@ use iri_rs::{Iri, IriBuf, IriRef, IriRefBuf, Uri, UriBuf, UriRef, UriRefBuf};
 use std::hint::black_box;
 
 mod corpus;
-use corpus::{IRI_CORPUS, INVALID, URI_CORPUS};
+use corpus::{INVALID, IRI_CORPUS, URI_CORPUS};
 
 fn bench_parse(c: &mut Criterion) {
     let mut g = c.benchmark_group("facade_parse/iri_borrowed");

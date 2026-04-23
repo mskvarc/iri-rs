@@ -14,15 +14,24 @@ fn parsed_iris() -> Vec<(&'static str, &'static Iri)> {
 }
 
 fn parsed_uris() -> Vec<(&'static str, &'static Uri)> {
-    URI_CORPUS.iter().filter_map(|c| Uri::new(c.input.as_bytes()).ok().map(|u| (c.label, u))).collect()
+    URI_CORPUS
+        .iter()
+        .filter_map(|c| Uri::new(c.input.as_bytes()).ok().map(|u| (c.label, u)))
+        .collect()
 }
 
 fn iri_bufs() -> Vec<(&'static str, IriBuf)> {
-    IRI_CORPUS.iter().filter_map(|c| IriBuf::new(c.input.to_string()).ok().map(|b| (c.label, b))).collect()
+    IRI_CORPUS
+        .iter()
+        .filter_map(|c| IriBuf::new(c.input.to_string()).ok().map(|b| (c.label, b)))
+        .collect()
 }
 
 fn uri_bufs() -> Vec<(&'static str, UriBuf)> {
-    URI_CORPUS.iter().filter_map(|c| UriBuf::new(c.input.as_bytes().to_vec()).ok().map(|b| (c.label, b))).collect()
+    URI_CORPUS
+        .iter()
+        .filter_map(|c| UriBuf::new(c.input.as_bytes().to_vec()).ok().map(|b| (c.label, b)))
+        .collect()
 }
 
 fn bench_component_extract(c: &mut Criterion) {
