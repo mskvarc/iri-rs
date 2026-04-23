@@ -158,6 +158,9 @@ pub fn path_eq_normalized(a: &str, b: &str) -> bool {
 }
 
 fn normalize_path(input: &str) -> String {
+    if memchr::memchr(b'.', input.as_bytes()).is_none() {
+        return input.to_owned();
+    }
     let mut out = String::with_capacity(input.len());
     let mut input = input;
     let had_leading_slash = input.starts_with('/');
@@ -208,6 +211,11 @@ fn opt_pct_unreserved_eq(a: Option<&str>, b: Option<&str>) -> bool {
 }
 
 pub fn pct_unreserved_eq(a: &str, b: &str) -> bool {
+    if memchr::memchr(b'%', a.as_bytes()).is_none()
+        && memchr::memchr(b'%', b.as_bytes()).is_none()
+    {
+        return a.as_bytes() == b.as_bytes();
+    }
     let mut ai = DecodeIter::new(a);
     let mut bi = DecodeIter::new(b);
     loop {
@@ -297,47 +305,52 @@ fn to_upper_hex(b: u8) -> u8 {
 
 pub fn normalized_hash<H: Hasher>(iri: &str, p: Positions, state: &mut H) {
     if p.scheme_end > 0 {
-        for b in iri.as_bytes()[..p.scheme_end - 1].iter() {
-            b.to_ascii_lowercase().hash(state);
-        }
-        b':'.hash(state);
+        hash_lower_ascii(&iri.as_bytes()[..p.scheme_end - 1], state);
+        state.write(b":");
     }
     if p.authority_end > p.scheme_end {
-        b'/'.hash(state);
-        b'/'.hash(state);
+        state.write(b"//");
         let auth = &iri[p.scheme_end + 2..p.authority_end];
         let (ui, rest) = split_user_info(auth);
         if let Some(ui) = ui {
-            for b in ui.bytes() {
-                b.hash(state);
-            }
-            b'@'.hash(state);
+            state.write(ui.as_bytes());
+            state.write(b"@");
         }
         let (host, port) = split_host_port(rest);
-        for b in host.bytes() {
-            b.to_ascii_lowercase().hash(state);
-        }
+        hash_lower_ascii(host.as_bytes(), state);
         if let Some(port) = port {
-            b':'.hash(state);
-            for b in port.bytes() {
-                b.hash(state);
-            }
+            state.write(b":");
+            state.write(port.as_bytes());
         }
     }
     let path = &iri[p.authority_end..p.path_end];
     let np = normalize_path(path);
     hash_pct_unreserved(&np, state);
     if p.query_end > p.path_end {
-        b'?'.hash(state);
+        state.write(b"?");
         hash_pct_unreserved(&iri[p.path_end + 1..p.query_end], state);
     }
     if iri.len() > p.query_end {
-        b'#'.hash(state);
+        state.write(b"#");
         hash_pct_unreserved(&iri[p.query_end + 1..], state);
     }
 }
 
+fn hash_lower_ascii<H: Hasher>(bytes: &[u8], state: &mut H) {
+    let mut buf = [0u8; 128];
+    for chunk in bytes.chunks(128) {
+        let n = chunk.len();
+        buf[..n].copy_from_slice(chunk);
+        buf[..n].make_ascii_lowercase();
+        state.write(&buf[..n]);
+    }
+}
+
 fn hash_pct_unreserved<H: Hasher>(s: &str, state: &mut H) {
+    if memchr::memchr(b'%', s.as_bytes()).is_none() {
+        state.write(s.as_bytes());
+        return;
+    }
     for b in DecodeIter::new(s) {
         b.hash(state);
     }

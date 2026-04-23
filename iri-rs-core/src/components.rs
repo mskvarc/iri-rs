@@ -41,6 +41,9 @@ pub fn path_is_absolute(path: &str) -> bool {
 }
 
 pub fn normalize_path(path: &str) -> String {
+    if memchr::memchr(b'.', path.as_bytes()).is_none() {
+        return path.to_owned();
+    }
     let mut input = path;
     let mut out = String::with_capacity(path.len());
 
