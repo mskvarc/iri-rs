@@ -1,6 +1,6 @@
 [package]
 name = "iri-rs"
-description = "Uniform & Internationalized Resource Identifiers (URIs/IRIs), borrowed and owned."
+description = "Allocation-conscious URI/IRI (RFC 3986/3987) parser, resolver and normalizer with borrowed and owned types, optional compile-time macros and vocabulary enums."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

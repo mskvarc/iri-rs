@@ -1,6 +1,6 @@
 [package]
 name = "iri-rs-static"
-description = "Macros for the `iref` library"
+description = "Compile-time IRI and URI literal macros for iri-rs. Validate at macro expansion and emit const expressions with pre-computed component positions."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,8 +8,8 @@ authors.workspace = true
 license.workspace = true
 readme = "README.md"
 repository.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["iri", "uri", "macro", "const", "compile-time"]
+categories = ["web-programming", "internationalization", "development-tools::procedural-macro-helpers"]
 
 [lib]
 proc-macro = true
