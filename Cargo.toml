@@ -3,7 +3,7 @@ members = ["iri-rs", "iri-rs-core", "iri-rs-enum", "iri-rs-static"]
 resolver = "3"
 
 [workspace.package]
-version = "3.3.1"
+version = "3.3.2"
 edition = "2024"
 rust-version = "1.85.0"
 authors = [
@@ -17,6 +17,6 @@ keywords = ["iri", "uri", "url", "resource", "identifier"]
 categories = ["web-programming", "internationalization"]
 
 [workspace.dependencies]
-iri-rs-core = { path = "iri-rs-core", version = "3.3.0" }
-iri-rs-enum = { path = "iri-rs-enum", version = "3.3.0" }
-iri-rs-static = { path = "iri-rs-static", version = "3.3.0" }
+iri-rs-core = { path = "iri-rs-core", version = "3.3.2" }
+iri-rs-enum = { path = "iri-rs-enum", version = "3.3.2" }
+iri-rs-static = { path = "iri-rs-static", version = "3.3.2" }

@@ -19,7 +19,7 @@ fast-hash = []
 [dependencies]
 memchr = "2.8.0"
 pct = "4.0.1"
-serde = { version = "1.0", optional = true }
+serde = { version = "1.0.228", optional = true }
 simdutf8 = "0.1.5"
 thiserror = "2.0.18"
 
