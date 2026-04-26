@@ -173,6 +173,9 @@
 //! The two IRIs `http://example.org` and `http://exa%6dple.org` **are** equivalent.
 pub use iri_rs_core::*;
 
+#[doc(hidden)]
+pub use iri_rs_core as __private;
+
 #[cfg(feature = "static")]
 pub use iri_rs_static::*;
 

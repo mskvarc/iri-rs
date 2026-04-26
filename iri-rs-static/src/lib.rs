@@ -6,15 +6,36 @@
 
 use iri_rs_core::{IriBuf, IriRefBuf, UriBuf, UriRefBuf};
 use proc_macro::TokenStream;
-use quote::quote;
+use proc_macro2::TokenStream as TokenStream2;
+use proc_macro_crate::{FoundCrate, crate_name};
+use quote::{format_ident, quote};
 
-fn positions_tokens(p: iri_rs_core::Positions) -> proc_macro2::TokenStream {
+fn core_path() -> TokenStream2 {
+    match crate_name("iri-rs") {
+        Ok(FoundCrate::Itself) => quote!(::iri_rs::__private),
+        Ok(FoundCrate::Name(n)) => {
+            let id = format_ident!("{}", n);
+            quote!(::#id::__private)
+        }
+        Err(_) => match crate_name("iri-rs-core")
+            .expect("expected `iri-rs` or `iri-rs-core` in dependencies")
+        {
+            FoundCrate::Itself => quote!(crate),
+            FoundCrate::Name(n) => {
+                let id = format_ident!("{}", n);
+                quote!(::#id)
+            }
+        },
+    }
+}
+
+fn positions_tokens(core: &TokenStream2, p: iri_rs_core::Positions) -> TokenStream2 {
     let s = p.scheme_end;
     let a = p.authority_end;
     let pe = p.path_end;
     let q = p.query_end;
     quote! {
-        ::iri_rs_core::Positions { scheme_end: #s, authority_end: #a, path_end: #pe, query_end: #q }
+        #core::Positions { scheme_end: #s, authority_end: #a, path_end: #pe, query_end: #q }
     }
 }
 
@@ -25,10 +46,11 @@ pub fn uri(tokens: TokenStream) -> TokenStream {
             let v = lit.value();
             match UriBuf::new(v.as_bytes().to_vec()) {
                 Ok(uri) => {
+                    let core = core_path();
                     let s = uri.as_str();
-                    let p = positions_tokens(uri.positions());
+                    let p = positions_tokens(&core, uri.positions());
                     quote! {
-                        ::iri_rs_core::Uri::<&'static str>::from_raw_parts(#s, #p)
+                        #core::Uri::<&'static str>::from_raw_parts(#s, #p)
                     }
                     .into()
                 }
@@ -46,10 +68,11 @@ pub fn uri_ref(tokens: TokenStream) -> TokenStream {
             let v = lit.value();
             match UriRefBuf::new(v.as_bytes().to_vec()) {
                 Ok(uri_ref) => {
+                    let core = core_path();
                     let s = uri_ref.as_str();
-                    let p = positions_tokens(uri_ref.positions());
+                    let p = positions_tokens(&core, uri_ref.positions());
                     quote! {
-                        ::iri_rs_core::UriRef::<&'static str>::from_raw_parts(#s, #p)
+                        #core::UriRef::<&'static str>::from_raw_parts(#s, #p)
                     }
                     .into()
                 }
@@ -65,10 +88,11 @@ pub fn iri(tokens: TokenStream) -> TokenStream {
     match syn::parse::<syn::LitStr>(tokens) {
         Ok(lit) => match IriBuf::new(lit.value()) {
             Ok(iri) => {
+                let core = core_path();
                 let s = iri.as_str();
-                let p = positions_tokens(iri.positions());
+                let p = positions_tokens(&core, iri.positions());
                 quote! {
-                    ::iri_rs_core::Iri::<&'static str>::from_raw_parts(#s, #p)
+                    #core::Iri::<&'static str>::from_raw_parts(#s, #p)
                 }
                 .into()
             }
@@ -83,10 +107,11 @@ pub fn iri_ref(tokens: TokenStream) -> TokenStream {
     match syn::parse::<syn::LitStr>(tokens) {
         Ok(lit) => match IriRefBuf::new(lit.value()) {
             Ok(iri_ref) => {
+                let core = core_path();
                 let s = iri_ref.as_str();
-                let p = positions_tokens(iri_ref.positions());
+                let p = positions_tokens(&core, iri_ref.positions());
                 quote! {
-                    ::iri_rs_core::IriRef::<&'static str>::from_raw_parts(#s, #p)
+                    #core::IriRef::<&'static str>::from_raw_parts(#s, #p)
                 }
                 .into()
             }

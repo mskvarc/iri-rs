@@ -16,6 +16,10 @@ proc-macro = true
 
 [dependencies]
 iri-rs-core.workspace = true
+proc-macro-crate = "3.5.0"
 proc-macro2 = "1.0.95"
 quote = "1.0.45"
 syn = "2.0.117"
+
+[dev-dependencies]
+iri-rs-core.workspace = true

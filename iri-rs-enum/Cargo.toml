@@ -16,6 +16,7 @@ proc-macro = true
 
 [dependencies]
 iri-rs-core.workspace = true
+proc-macro-crate = "3.5.0"
 proc-macro2 = "1.0.106"
 quote = "1.0.45"
 syn = { version = "2.0.117", features = ["full"] }
