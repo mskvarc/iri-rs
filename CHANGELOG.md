@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.3.2] - 2026-04-26
+
+### 📚 Documentation
+- Update changelog
+
+### 🚀 Features
+- Automatically determine path for proc macros
+
+### 🧹 Chores
+- Update manifests/metadata
+- Bump version
+
 ## [v3.3.1] - 2026-04-23
 
 ### ⚡ Performance
