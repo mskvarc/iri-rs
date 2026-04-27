@@ -5,6 +5,7 @@ pub mod error;
 pub mod mutate;
 pub mod normalize;
 pub mod parse;
+pub mod relativize;
 pub mod resolve;
 pub mod types;
 pub mod validate;

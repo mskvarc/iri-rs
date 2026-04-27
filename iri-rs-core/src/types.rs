@@ -13,6 +13,7 @@ use std::{
 use crate::{
     error::{InvalidIri, InvalidUri, InvalidUriRef, IriParseError},
     parse::{Positions, find_iri_positions, find_iri_ref_positions},
+    relativize::relativize,
     resolve::resolve,
     validate::{validate_iri, validate_iri_ref, validate_resolved_path},
 };
@@ -392,6 +393,19 @@ impl<T: Deref<Target = str>> Iri<T> {
     pub fn as_iri_ref(&self) -> &IriRef<T> {
         &self.0
     }
+
+    /// Make `self` relative to `base`, returning an `IriRef<String>` `R`
+    /// such that resolving `R` against `base` reconstructs `self`.
+    pub fn relative_to<U: Deref<Target = str>>(&self, base: &Iri<U>) -> IriRef<String> {
+        let mut out = String::new();
+        relativize(
+            (&base.0.iri, base.0.positions),
+            (&self.0.iri, self.0.positions),
+            &mut out,
+        );
+        let positions = find_iri_ref_positions(&out);
+        IriRef::from_raw_parts(out, positions)
+    }
 }
 
 impl<T: Deref<Target = str>> Deref for Iri<T> {
@@ -696,6 +710,19 @@ impl<T: Deref<Target = str>> Uri<T> {
     }
     pub fn as_uri_ref(&self) -> &UriRef<T> {
         &self.0
+    }
+
+    /// Make `self` relative to `base`, returning a `UriRef<String>` `R`
+    /// such that resolving `R` against `base` reconstructs `self`.
+    pub fn relative_to<U: Deref<Target = str>>(&self, base: &Uri<U>) -> UriRef<String> {
+        let mut out = String::new();
+        relativize(
+            (&base.0.uri, base.0.positions),
+            (&self.0.uri, self.0.positions),
+            &mut out,
+        );
+        let positions = find_iri_ref_positions(&out);
+        UriRef::from_raw_parts(out, positions)
     }
 }
 
