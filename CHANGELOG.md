@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.3.4] - 2026-04-27
+
+### 📚 Documentation
+- Update changelog
+
+### 🚀 Features
+- Unchecked constructors
+
+### 🧹 Chores
+- Bump version
+- Bump version
+
 ## [v3.3.3] - 2026-04-27
 
 ### 🚀 Features
