@@ -14,7 +14,12 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/mskvarc/iri-rs/"
 keywords = ["iri", "uri", "url", "rfc3986", "identifier"]
-categories = ["parser-implementations", "web-programming", "internationalization", "encoding"]
+categories = [
+    "parser-implementations",
+    "web-programming",
+    "internationalization",
+    "encoding",
+]
 
 [workspace.dependencies]
 iri-rs-core = { path = "iri-rs-core", version = "3.3.2" }
