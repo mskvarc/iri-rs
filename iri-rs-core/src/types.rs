@@ -938,6 +938,35 @@ impl Iri<String> {
             Err(_) => Err(InvalidIri(buffer)),
         }
     }
+
+    /// Build an `IriBuf` from a string without validating that it is a
+    /// well-formed IRI. The caller must guarantee the string was previously
+    /// validated by `IriBuf::new`/`Iri::parse`/`Iri::new` (or comes from
+    /// another source known to produce only valid IRIs).
+    ///
+    /// # Safety
+    /// Passing a string that is not a valid IRI may cause downstream
+    /// `IriBuf` consumers to misbehave. This is not memory-unsafe in the
+    /// strict Rust sense (no UB in this crate), but the `unsafe` marker is
+    /// retained to make the precondition impossible to ignore.
+    #[inline]
+    pub unsafe fn new_unchecked(value: String) -> Self {
+        Self::parse_unchecked(value)
+    }
+}
+
+impl<'a> Iri<&'a str> {
+    /// Build an `Iri<&str>` from a string slice without validating that it
+    /// is a well-formed IRI. See [`Iri::<String>::new_unchecked`] for the
+    /// safety contract.
+    ///
+    /// # Safety
+    /// Passing a slice that is not a valid IRI may cause downstream
+    /// consumers to misbehave.
+    #[inline]
+    pub unsafe fn new_unchecked(value: &'a str) -> Self {
+        Self::parse_unchecked(value)
+    }
 }
 impl IriRef<String> {
     pub fn new(s: impl Into<String>) -> Result<Self, InvalidIri<String>> {
