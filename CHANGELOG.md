@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.3.3] - 2026-04-27
+
+### 🚀 Features
+- Bring back relative functionality
+
+### 🧹 Chores
+- Bump version
+- Update changelog
+
 ## [v3.3.2] - 2026-04-26
 
 ### 📚 Documentation
