@@ -14,7 +14,7 @@ fn bench_segment_iter(c: &mut Criterion) {
             b.iter(|| {
                 let mut n = 0usize;
                 for seg in black_box(iri).path_segments() {
-                    n = n.wrapping_add(seg.as_bytes().len());
+                    n = n.wrapping_add(seg.len());
                 }
                 n
             });

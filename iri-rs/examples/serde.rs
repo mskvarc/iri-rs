@@ -2,19 +2,19 @@ use iri_rs::{IriBuf, IriRefBuf};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Foo {
+struct Resource {
     iri: IriBuf,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Bar {
+struct Link {
     iri_ref: IriRefBuf,
 }
 
 fn main() {
-    let foo: Foo = serde_json::from_str("{ \"iri\": \"https://example.org/foo\" }").unwrap();
-    let bar: Bar = serde_json::from_str("{ \"iri_ref\": \"../bar\" }").unwrap();
+    let resource: Resource = serde_json::from_str("{ \"iri\": \"https://example.org/foo\" }").unwrap();
+    let link: Link = serde_json::from_str("{ \"iri_ref\": \"../bar\" }").unwrap();
 
-    eprintln!("{:?}", foo);
-    eprintln!("{:?}", bar);
+    eprintln!("{:?}", resource);
+    eprintln!("{:?}", link);
 }
