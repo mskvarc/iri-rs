@@ -14,11 +14,7 @@ fn bench_setters(c: &mut Criterion) {
     });
 
     c.bench_function("mutate/set_authority_replace", |b| {
-        b.iter_batched_ref(
-            seed,
-            |buf| buf.set_authority(Some(black_box("user@other.example:9000"))),
-            BatchSize::SmallInput,
-        );
+        b.iter_batched_ref(seed, |buf| buf.set_authority(Some(black_box("user@other.example:9000"))), BatchSize::SmallInput);
     });
 
     c.bench_function("mutate/set_authority_clear", |b| {

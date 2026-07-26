@@ -31,11 +31,7 @@ impl fmt::Display for IriParseError {
                 write!(f, "Invalid IRI code point '{c}'")
             }
             IriParseErrorKind::InvalidPercentEncoding(cs) => {
-                write!(
-                    f,
-                    "Invalid IRI percent encoding '{}'",
-                    cs.iter().flatten().collect::<String>()
-                )
+                write!(f, "Invalid IRI percent encoding '{}'", cs.iter().flatten().collect::<String>())
             }
             IriParseErrorKind::PathStartingWithTwoSlashes => {
                 write!(f, "An IRI path is not allowed to start with //")

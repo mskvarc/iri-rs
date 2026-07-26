@@ -50,7 +50,10 @@ impl<T: Deref<Target = str>> IriRef<T> {
     }
 
     pub fn as_ref(&self) -> IriRef<&str> {
-        IriRef { iri: &self.iri, positions: self.positions }
+        IriRef {
+            iri: &self.iri,
+            positions: self.positions,
+        }
     }
 
     #[inline]
@@ -114,29 +117,14 @@ impl<T: Deref<Target = str>> IriRef<T> {
         }
     }
 
-    pub fn resolve_into<U: Deref<Target = str>>(
-        &self,
-        base: &Iri<U>,
-        output: &mut String,
-    ) -> Result<(), IriParseError> {
-        let positions = resolve(
-            (&base.0.iri, base.0.positions),
-            (&self.iri, self.positions),
-            output,
-        );
+    pub fn resolve_into<U: Deref<Target = str>>(&self, base: &Iri<U>, output: &mut String) -> Result<(), IriParseError> {
+        let positions = resolve((&base.0.iri, base.0.positions), (&self.iri, self.positions), output);
         validate_resolved_path(output, positions)
     }
 
-    pub fn resolved<U: Deref<Target = str>>(
-        &self,
-        base: &Iri<U>,
-    ) -> Result<IriRef<String>, IriParseError> {
+    pub fn resolved<U: Deref<Target = str>>(&self, base: &Iri<U>) -> Result<IriRef<String>, IriParseError> {
         let mut out = String::with_capacity(base.0.iri.len() + self.iri.len());
-        let positions = resolve(
-            (&base.0.iri, base.0.positions),
-            (&self.iri, self.positions),
-            &mut out,
-        );
+        let positions = resolve((&base.0.iri, base.0.positions), (&self.iri, self.positions), &mut out);
         validate_resolved_path(&out, positions)?;
         Ok(IriRef { iri: out, positions })
     }
@@ -259,12 +247,7 @@ mod normalized_impls {
     }
     impl<T: Deref<Target = str>> PartialEq for Iri<T> {
         fn eq(&self, other: &Self) -> bool {
-            iri_eq(
-                &self.0.iri,
-                self.0.positions,
-                &other.0.iri,
-                other.0.positions,
-            )
+            iri_eq(&self.0.iri, self.0.positions, &other.0.iri, other.0.positions)
         }
     }
     impl<T: Deref<Target = str>> Eq for Iri<T> {}
@@ -280,34 +263,41 @@ mod normalized_impls {
     }
     impl<T: Deref<Target = str>> Ord for Iri<T> {
         fn cmp(&self, other: &Self) -> Ordering {
-            iri_cmp(
-                &self.0.iri,
-                self.0.positions,
-                &other.0.iri,
-                other.0.positions,
-            )
+            iri_cmp(&self.0.iri, self.0.positions, &other.0.iri, other.0.positions)
         }
     }
 }
 
 impl<'a> From<IriRef<&'a str>> for IriRef<String> {
     fn from(v: IriRef<&'a str>) -> Self {
-        Self { iri: v.iri.into(), positions: v.positions }
+        Self {
+            iri: v.iri.into(),
+            positions: v.positions,
+        }
     }
 }
 impl<'a> From<&'a IriRef<String>> for IriRef<&'a str> {
     fn from(v: &'a IriRef<String>) -> Self {
-        IriRef { iri: &v.iri, positions: v.positions }
+        IriRef {
+            iri: &v.iri,
+            positions: v.positions,
+        }
     }
 }
 impl<'a> From<IriRef<&'a str>> for IriRef<Cow<'a, str>> {
     fn from(v: IriRef<&'a str>) -> Self {
-        Self { iri: Cow::Borrowed(v.iri), positions: v.positions }
+        Self {
+            iri: Cow::Borrowed(v.iri),
+            positions: v.positions,
+        }
     }
 }
 impl From<IriRef<String>> for IriRef<Cow<'_, str>> {
     fn from(v: IriRef<String>) -> Self {
-        Self { iri: Cow::Owned(v.iri), positions: v.positions }
+        Self {
+            iri: Cow::Owned(v.iri),
+            positions: v.positions,
+        }
     }
 }
 
@@ -398,11 +388,7 @@ impl<T: Deref<Target = str>> Iri<T> {
     /// such that resolving `R` against `base` reconstructs `self`.
     pub fn relative_to<U: Deref<Target = str>>(&self, base: &Iri<U>) -> IriRef<String> {
         let mut out = String::new();
-        relativize(
-            (&base.0.iri, base.0.positions),
-            (&self.0.iri, self.0.positions),
-            &mut out,
-        );
+        relativize((&base.0.iri, base.0.positions), (&self.0.iri, self.0.positions), &mut out);
         let positions = find_iri_ref_positions(&out);
         IriRef::from_raw_parts(out, positions)
     }
@@ -454,11 +440,7 @@ impl<T: Deref<Target = str>> From<Iri<T>> for IriRef<T> {
 impl<T: Deref<Target = str>> TryFrom<IriRef<T>> for Iri<T> {
     type Error = InvalidIri<T>;
     fn try_from(v: IriRef<T>) -> Result<Self, Self::Error> {
-        if v.is_absolute() {
-            Ok(Self(v))
-        } else {
-            Err(InvalidIri(v.iri))
-        }
+        if v.is_absolute() { Ok(Self(v)) } else { Err(InvalidIri(v.iri)) }
     }
 }
 
@@ -469,7 +451,10 @@ impl<'a> From<Iri<&'a str>> for Iri<String> {
 }
 impl<'a> From<&'a Iri<String>> for Iri<&'a str> {
     fn from(v: &'a Iri<String>) -> Self {
-        Iri(IriRef { iri: &v.0.iri, positions: v.0.positions })
+        Iri(IriRef {
+            iri: &v.0.iri,
+            positions: v.0.positions,
+        })
     }
 }
 
@@ -524,7 +509,10 @@ impl<T: Deref<Target = str>> UriRef<T> {
     }
 
     pub fn as_ref(&self) -> UriRef<&str> {
-        UriRef { uri: &self.uri, positions: self.positions }
+        UriRef {
+            uri: &self.uri,
+            positions: self.positions,
+        }
     }
     pub fn as_str(&self) -> &str {
         &self.uri
@@ -576,29 +564,14 @@ impl<T: Deref<Target = str>> UriRef<T> {
         }
     }
 
-    pub fn resolve_into<U: Deref<Target = str>>(
-        &self,
-        base: &Uri<U>,
-        output: &mut String,
-    ) -> Result<(), IriParseError> {
-        let positions = resolve(
-            (&base.0.uri, base.0.positions),
-            (&self.uri, self.positions),
-            output,
-        );
+    pub fn resolve_into<U: Deref<Target = str>>(&self, base: &Uri<U>, output: &mut String) -> Result<(), IriParseError> {
+        let positions = resolve((&base.0.uri, base.0.positions), (&self.uri, self.positions), output);
         validate_resolved_path(output, positions)
     }
 
-    pub fn resolved<U: Deref<Target = str>>(
-        &self,
-        base: &Uri<U>,
-    ) -> Result<UriRef<String>, IriParseError> {
+    pub fn resolved<U: Deref<Target = str>>(&self, base: &Uri<U>) -> Result<UriRef<String>, IriParseError> {
         let mut out = String::with_capacity(base.0.uri.len() + self.uri.len());
-        let positions = resolve(
-            (&base.0.uri, base.0.positions),
-            (&self.uri, self.positions),
-            &mut out,
-        );
+        let positions = resolve((&base.0.uri, base.0.positions), (&self.uri, self.positions), &mut out);
         validate_resolved_path(&out, positions)?;
         Ok(UriRef { uri: out, positions })
     }
@@ -641,12 +614,18 @@ impl FromStr for UriRef<String> {
 
 impl<'a> From<UriRef<&'a str>> for UriRef<String> {
     fn from(v: UriRef<&'a str>) -> Self {
-        UriRef { uri: v.uri.into(), positions: v.positions }
+        UriRef {
+            uri: v.uri.into(),
+            positions: v.positions,
+        }
     }
 }
 impl<'a> From<&'a UriRef<String>> for UriRef<&'a str> {
     fn from(v: &'a UriRef<String>) -> Self {
-        UriRef { uri: &v.uri, positions: v.positions }
+        UriRef {
+            uri: &v.uri,
+            positions: v.positions,
+        }
     }
 }
 
@@ -716,11 +695,7 @@ impl<T: Deref<Target = str>> Uri<T> {
     /// such that resolving `R` against `base` reconstructs `self`.
     pub fn relative_to<U: Deref<Target = str>>(&self, base: &Uri<U>) -> UriRef<String> {
         let mut out = String::new();
-        relativize(
-            (&base.0.uri, base.0.positions),
-            (&self.0.uri, self.0.positions),
-            &mut out,
-        );
+        relativize((&base.0.uri, base.0.positions), (&self.0.uri, self.0.positions), &mut out);
         let positions = find_iri_ref_positions(&out);
         UriRef::from_raw_parts(out, positions)
     }
@@ -770,11 +745,7 @@ impl<T: Deref<Target = str>> From<Uri<T>> for UriRef<T> {
 impl<T: Deref<Target = str>> TryFrom<UriRef<T>> for Uri<T> {
     type Error = InvalidUri<T>;
     fn try_from(v: UriRef<T>) -> Result<Self, Self::Error> {
-        if v.is_absolute() {
-            Ok(Self(v))
-        } else {
-            Err(InvalidUri(v.uri))
-        }
+        if v.is_absolute() { Ok(Self(v)) } else { Err(InvalidUri(v.uri)) }
     }
 }
 
@@ -858,12 +829,7 @@ mod uri_norm {
     }
     impl<T: Deref<Target = str>> PartialEq for Uri<T> {
         fn eq(&self, other: &Self) -> bool {
-            iri_eq(
-                &self.0.uri,
-                self.0.positions,
-                &other.0.uri,
-                other.0.positions,
-            )
+            iri_eq(&self.0.uri, self.0.positions, &other.0.uri, other.0.positions)
         }
     }
     impl<T: Deref<Target = str>> Eq for Uri<T> {}
@@ -879,12 +845,7 @@ mod uri_norm {
     }
     impl<T: Deref<Target = str>> Ord for Uri<T> {
         fn cmp(&self, other: &Self) -> Ordering {
-            iri_cmp(
-                &self.0.uri,
-                self.0.positions,
-                &other.0.uri,
-                other.0.positions,
-            )
+            iri_cmp(&self.0.uri, self.0.positions, &other.0.uri, other.0.positions)
         }
     }
 }
@@ -1016,8 +977,7 @@ mod serde_impls {
     impl<'de, T: Deref<Target = str> + Deserialize<'de>> Deserialize<'de> for IriRef<T> {
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
             use serde::de::Error;
-            Self::parse(T::deserialize(d)?)
-                .map_err(|e| Error::custom(format!("{:?}", e.0.deref())))
+            Self::parse(T::deserialize(d)?).map_err(|e| Error::custom(format!("{:?}", e.0.deref())))
         }
     }
     impl<T: Deref<Target = str> + Serialize> Serialize for Iri<T> {
@@ -1040,8 +1000,7 @@ mod serde_impls {
     impl<'de, T: Deref<Target = str> + Deserialize<'de>> Deserialize<'de> for UriRef<T> {
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
             use serde::de::Error;
-            Self::parse(T::deserialize(d)?)
-                .map_err(|e| Error::custom(format!("{:?}", e.0.deref())))
+            Self::parse(T::deserialize(d)?).map_err(|e| Error::custom(format!("{:?}", e.0.deref())))
         }
     }
     impl<T: Deref<Target = str> + Serialize> Serialize for Uri<T> {

@@ -10,24 +10,15 @@ mod corpus;
 use corpus::{IRI_CORPUS, URI_CORPUS};
 
 fn parsed_iris() -> Vec<(&'static str, Iri<&'static str>)> {
-    IRI_CORPUS
-        .iter()
-        .filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i)))
-        .collect()
+    IRI_CORPUS.iter().filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i))).collect()
 }
 
 fn parsed_uris() -> Vec<(&'static str, Uri<&'static str>)> {
-    URI_CORPUS
-        .iter()
-        .filter_map(|c| Uri::parse(c.input).ok().map(|u| (c.label, u)))
-        .collect()
+    URI_CORPUS.iter().filter_map(|c| Uri::parse(c.input).ok().map(|u| (c.label, u))).collect()
 }
 
 fn iri_bufs() -> Vec<(&'static str, IriBuf)> {
-    IRI_CORPUS
-        .iter()
-        .filter_map(|c| IriBuf::new(c.input).ok().map(|b| (c.label, b)))
-        .collect()
+    IRI_CORPUS.iter().filter_map(|c| IriBuf::new(c.input).ok().map(|b| (c.label, b))).collect()
 }
 
 fn uri_bufs() -> Vec<(&'static str, UriBuf)> {

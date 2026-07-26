@@ -37,10 +37,7 @@ pub fn find_iri_positions(iri: &str) -> Positions {
 pub fn find_iri_positions_knowing_scheme_end(iri: &[u8], scheme_end: usize) -> Positions {
     let path_end = memchr2(b'?', b'#', &iri[scheme_end..]).map_or(iri.len(), |l| scheme_end + l);
     let query_end = memchr(b'#', &iri[path_end..]).map_or(iri.len(), |l| path_end + l);
-    let authority_end = if scheme_end + 2 <= path_end
-        && iri[scheme_end] == b'/'
-        && iri[scheme_end + 1] == b'/'
-    {
+    let authority_end = if scheme_end + 2 <= path_end && iri[scheme_end] == b'/' && iri[scheme_end + 1] == b'/' {
         memchr(b'/', &iri[scheme_end + 2..path_end]).map_or(path_end, |l| scheme_end + 2 + l)
     } else {
         scheme_end
@@ -71,11 +68,7 @@ pub fn find_iri_ref_positions(iri: &str) -> Positions {
         _ => {
             let scheme_end = memchr3(b':', b'?', b'/', iri).map_or(0, |index| {
                 if iri[index] == b':' {
-                    if memchr(b'#', &iri[..index]).is_some() {
-                        0
-                    } else {
-                        index + 1
-                    }
+                    if memchr(b'#', &iri[..index]).is_some() { 0 } else { index + 1 }
                 } else {
                     0
                 }

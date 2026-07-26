@@ -30,13 +30,21 @@
 
 use iri_rs_core::{IriBuf, Positions};
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
 use proc_macro_crate::{FoundCrate, crate_name};
+use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::collections::HashMap;
 use syn::{
-    Attribute, Data, DeriveInput, Fields, LitStr, Meta, Token, parse::Parse, parse::ParseStream,
-    parse_macro_input, parse2,
+    Attribute,
+    Data,
+    DeriveInput,
+    Fields,
+    LitStr,
+    Meta,
+    Token,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
+    parse2,
 };
 
 macro_rules! bail {
@@ -52,9 +60,7 @@ fn core_path() -> TokenStream2 {
             let id = format_ident!("{}", n);
             quote!(::#id::__private)
         }
-        Err(_) => match crate_name("iri-rs-core")
-            .expect("expected `iri-rs` or `iri-rs-core` in dependencies")
-        {
+        Err(_) => match crate_name("iri-rs-core").expect("expected `iri-rs` or `iri-rs-core` in dependencies") {
             FoundCrate::Itself => quote!(crate),
             FoundCrate::Name(n) => {
                 let id = format_ident!("{}", n);
@@ -101,8 +107,7 @@ fn expand_iri(value: &str, prefixes: &HashMap<String, IriBuf>) -> Result<IriBuf,
             if !suffix.starts_with("//") {
                 if let Some(base) = prefixes.get(prefix) {
                     let concat = format!("{}{}", base.as_str(), suffix);
-                    return IriBuf::new(concat.clone())
-                        .map_err(|_| format!("invalid IRI `{}`", concat));
+                    return IriBuf::new(concat.clone()).map_err(|_| format!("invalid IRI `{}`", concat));
                 }
             }
         }
@@ -185,11 +190,7 @@ pub fn iri_enum_derive(input: TokenStream) -> TokenStream {
         match variant.fields {
             Fields::Unit => {
                 let Some(iri) = variant_iri else {
-                    bail!(
-                        variant_ident.span(),
-                        "missing `#[iri(...)]` attribute for unit variant `{}`",
-                        variant_ident
-                    );
+                    bail!(variant_ident.span(), "missing `#[iri(...)]` attribute for unit variant `{}`", variant_ident);
                 };
                 let raw = iri.as_str();
                 let iri_expr = iri_const_tokens(&core, &iri);
@@ -212,14 +213,8 @@ pub fn iri_enum_derive(input: TokenStream) -> TokenStream {
                     #type_id::#variant_ident(v) => <&#ty as ::core::convert::Into<#core::Iri<&'static str>>>::into(v),
                 });
             }
-            Fields::Named(_) => bail!(
-                variant_ident.span(),
-                "variants with named fields are unsupported"
-            ),
-            Fields::Unnamed(_) => bail!(
-                variant_ident.span(),
-                "variants with more than one field are unsupported"
-            ),
+            Fields::Named(_) => bail!(variant_ident.span(), "variants with named fields are unsupported"),
+            Fields::Unnamed(_) => bail!(variant_ident.span(), "variants with more than one field are unsupported"),
         }
     }
 

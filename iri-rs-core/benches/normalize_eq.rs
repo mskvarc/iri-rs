@@ -1,8 +1,10 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use iri_rs_core::Iri;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::hint::black_box;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    hint::black_box,
+};
 
 #[path = "corpus.rs"]
 mod corpus;
@@ -49,11 +51,7 @@ const PCT_PAIRS: &[Pair] = &[
 
 const DOT_PAIRS: &[Pair] = &[
     p("shallow_dot", "http://a/b/c/./../../g", "http://a/g"),
-    p(
-        "deep_dot",
-        "http://a/./b/./c/../d/../e/./f/../../g",
-        "http://a/e/g",
-    ),
+    p("deep_dot", "http://a/./b/./c/../d/../e/./f/../../g", "http://a/e/g"),
 ];
 
 const SCHEME_CASE_PAIRS: &[Pair] = &[
@@ -66,10 +64,7 @@ const SCHEME_CASE_PAIRS: &[Pair] = &[
 ];
 
 fn parse_pairs(pairs: &[Pair]) -> Vec<(&'static str, Iri<&'static str>, Iri<&'static str>)> {
-    pairs
-        .iter()
-        .map(|p| (p.label, Iri::parse(p.a).unwrap(), Iri::parse(p.b).unwrap()))
-        .collect()
+    pairs.iter().map(|p| (p.label, Iri::parse(p.a).unwrap(), Iri::parse(p.b).unwrap())).collect()
 }
 
 fn bench_iri_eq(c: &mut Criterion) {
@@ -109,10 +104,7 @@ fn bench_iri_cmp(c: &mut Criterion) {
 }
 
 fn bench_normalized_hash(c: &mut Criterion) {
-    let iris: Vec<(&str, Iri<&str>)> = IRI_CORPUS
-        .iter()
-        .filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i)))
-        .collect();
+    let iris: Vec<(&str, Iri<&str>)> = IRI_CORPUS.iter().filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i))).collect();
 
     let mut g = c.benchmark_group("normalize/normalized_hash");
     for (label, iri) in &iris {

@@ -39,10 +39,7 @@ fn try_from_with_parameter() {
 
     assert_eq!(Vocab::try_from(&iri!("https://schema.org/name")), Ok(Vocab::Name));
     assert_eq!(Vocab::try_from(&iri!("https://schema.org/knows")), Ok(Vocab::Knows));
-    assert_eq!(
-        Vocab::try_from(&iri!("https://schema.org/Text")),
-        Ok(Vocab::Other(OtherVocab::Text))
-    );
+    assert_eq!(Vocab::try_from(&iri!("https://schema.org/Text")), Ok(Vocab::Other(OtherVocab::Text)));
     assert_eq!(Vocab::try_from(&iri!("https://schema.org/other")), Err(()));
 }
 

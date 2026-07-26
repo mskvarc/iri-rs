@@ -127,26 +127,17 @@ pub fn validate_scheme(scheme: &str) -> Result<(), IriParseError> {
     let bytes = scheme.as_bytes();
     let first = *bytes.first().ok_or(IriParseErrorKind::EmptyScheme)?;
     if !first.is_ascii_alphabetic() {
-        return Err(IriParseErrorKind::InvalidSchemeCharacter(
-            scheme.chars().next().unwrap_or_default(),
-        )
-        .into());
+        return Err(IriParseErrorKind::InvalidSchemeCharacter(scheme.chars().next().unwrap_or_default()).into());
     }
     if let Some(i) = bytes[1..].iter().position(|&c| !SCHEME_CHAR[c as usize]) {
-        return Err(IriParseErrorKind::InvalidSchemeCharacter(
-            scheme[i + 1..].chars().next().unwrap_or_default(),
-        )
-        .into());
+        return Err(IriParseErrorKind::InvalidSchemeCharacter(scheme[i + 1..].chars().next().unwrap_or_default()).into());
     }
     Ok(())
 }
 
 pub fn validate_authority(authority: &str, is_iri: bool) -> Result<(), IriParseError> {
     let Some(body) = authority.strip_prefix("//") else {
-        return Err(IriParseErrorKind::InvalidHostCharacter(
-            authority.chars().next().unwrap_or_default(),
-        )
-        .into());
+        return Err(IriParseErrorKind::InvalidHostCharacter(authority.chars().next().unwrap_or_default()).into());
     };
     validate_authority_body(body, is_iri)
 }
@@ -166,10 +157,7 @@ pub(crate) fn validate_authority_body(body: &str, is_iri: bool) -> Result<(), Ir
         let rest = &rest[end + 1..];
         if !rest.is_empty() {
             let Some(port) = rest.strip_prefix(':') else {
-                return Err(IriParseErrorKind::InvalidHostCharacter(
-                    rest.chars().next().unwrap(),
-                )
-                .into());
+                return Err(IriParseErrorKind::InvalidHostCharacter(rest.chars().next().unwrap()).into());
             };
             validate_port(port)?;
         }
@@ -190,10 +178,7 @@ pub fn validate_host(host: &str, is_iri: bool) -> Result<(), IriParseError> {
         };
         validate_ip(&ip[..end])?;
         if end + 1 != ip.len() {
-            return Err(IriParseErrorKind::InvalidHostCharacter(
-                ip[end + 1..].chars().next().unwrap_or_default(),
-            )
-            .into());
+            return Err(IriParseErrorKind::InvalidHostCharacter(ip[end + 1..].chars().next().unwrap_or_default()).into());
         }
         Ok(())
     } else {
@@ -209,59 +194,34 @@ pub fn validate_ip(ip: &str) -> Result<(), IriParseError> {
     if ip.starts_with(['v', 'V']) {
         validate_ip_v_future(ip)
     } else {
-        Ipv6Addr::from_str(ip)
-            .map(|_| ())
-            .map_err(|e| IriParseErrorKind::InvalidHostIp(e).into())
+        Ipv6Addr::from_str(ip).map(|_| ()).map_err(|e| IriParseErrorKind::InvalidHostIp(e).into())
     }
 }
 
 pub fn validate_ip_v_future(ip: &str) -> Result<(), IriParseError> {
     let Some(rest) = ip.strip_prefix(['v', 'V']) else {
-        return Err(IriParseErrorKind::InvalidHostCharacter(
-            ip.chars().next().unwrap_or_default(),
-        )
-        .into());
+        return Err(IriParseErrorKind::InvalidHostCharacter(ip.chars().next().unwrap_or_default()).into());
     };
-    let version_size = rest
-        .as_bytes()
-        .iter()
-        .position(|c| !c.is_ascii_hexdigit())
-        .unwrap_or(rest.len());
+    let version_size = rest.as_bytes().iter().position(|c| !c.is_ascii_hexdigit()).unwrap_or(rest.len());
     if version_size == 0 {
-        return Err(IriParseErrorKind::InvalidHostCharacter(
-            rest.chars().next().unwrap_or_default(),
-        )
-        .into());
+        return Err(IriParseErrorKind::InvalidHostCharacter(rest.chars().next().unwrap_or_default()).into());
     }
     let rest = &rest[version_size..];
     let Some(rest) = rest.strip_prefix('.') else {
-        return Err(IriParseErrorKind::InvalidHostCharacter(
-            rest.chars().next().unwrap_or_default(),
-        )
-        .into());
+        return Err(IriParseErrorKind::InvalidHostCharacter(rest.chars().next().unwrap_or_default()).into());
     };
     if rest.is_empty() {
         return Err(IriParseErrorKind::InvalidHostCharacter(']').into());
     }
-    if let Some(i) = rest
-        .as_bytes()
-        .iter()
-        .position(|&c| !UNRESERVED_SUB_DELIMS_COLON[c as usize])
-    {
-        return Err(IriParseErrorKind::InvalidHostCharacter(
-            rest[i..].chars().next().unwrap_or_default(),
-        )
-        .into());
+    if let Some(i) = rest.as_bytes().iter().position(|&c| !UNRESERVED_SUB_DELIMS_COLON[c as usize]) {
+        return Err(IriParseErrorKind::InvalidHostCharacter(rest[i..].chars().next().unwrap_or_default()).into());
     }
     Ok(())
 }
 
 pub fn validate_port(port: &str) -> Result<(), IriParseError> {
     if let Some(i) = port.as_bytes().iter().position(|c| !c.is_ascii_digit()) {
-        return Err(IriParseErrorKind::InvalidPortCharacter(
-            port[i..].chars().next().unwrap_or_default(),
-        )
-        .into());
+        return Err(IriParseErrorKind::InvalidPortCharacter(port[i..].chars().next().unwrap_or_default()).into());
     }
     Ok(())
 }
@@ -283,12 +243,7 @@ pub fn validate_fragment(fragment: &str, is_iri: bool) -> Result<(), IriParseErr
 }
 
 #[inline]
-pub fn validate_code_point_or_echar(
-    input: &str,
-    ascii_validator: [bool; 256],
-    is_iri: bool,
-    allow_iprivate: bool,
-) -> Result<(), IriParseError> {
+pub fn validate_code_point_or_echar(input: &str, ascii_validator: [bool; 256], is_iri: bool, allow_iprivate: bool) -> Result<(), IriParseError> {
     let bytes = input.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -304,12 +259,7 @@ pub fn validate_code_point_or_echar(
                         i += 3;
                     }
                     _ => {
-                        return Err(IriParseErrorKind::InvalidPercentEncoding([
-                            Some('%'),
-                            c1.map(|c| c as char),
-                            c2.map(|c| c as char),
-                        ])
-                        .into());
+                        return Err(IriParseErrorKind::InvalidPercentEncoding([Some('%'), c1.map(|c| c as char), c2.map(|c| c as char)]).into());
                     }
                 }
             } else {

@@ -6,8 +6,8 @@
 
 use iri_rs_core::{IriBuf, IriRefBuf, UriBuf, UriRefBuf};
 use proc_macro::TokenStream;
-use proc_macro2::TokenStream as TokenStream2;
 use proc_macro_crate::{FoundCrate, crate_name};
+use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
 fn core_path() -> TokenStream2 {
@@ -17,9 +17,7 @@ fn core_path() -> TokenStream2 {
             let id = format_ident!("{}", n);
             quote!(::#id::__private)
         }
-        Err(_) => match crate_name("iri-rs-core")
-            .expect("expected `iri-rs` or `iri-rs-core` in dependencies")
-        {
+        Err(_) => match crate_name("iri-rs-core").expect("expected `iri-rs` or `iri-rs-core` in dependencies") {
             FoundCrate::Itself => quote!(crate),
             FoundCrate::Name(n) => {
                 let id = format_ident!("{}", n);

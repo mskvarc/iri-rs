@@ -5,10 +5,7 @@ use crate::{
     parse::find_iri_ref_positions,
     resolve::resolve,
     types::{Iri, IriBuf, IriRef, IriRefBuf, Uri, UriBuf, UriRef, UriRefBuf},
-    validate::{
-        validate_authority_body, validate_fragment, validate_iri_ref, validate_path,
-        validate_query, validate_resolved_path, validate_scheme,
-    },
+    validate::{validate_authority_body, validate_fragment, validate_iri_ref, validate_path, validate_query, validate_resolved_path, validate_scheme},
 };
 
 impl IriRefBuf {
@@ -45,16 +42,9 @@ impl IriRefBuf {
         rebuild(self, Edit::Fragment(fragment.map(str::to_string)), true)
     }
 
-    pub fn resolve<T: std::ops::Deref<Target = str>>(
-        &mut self,
-        base: &Iri<T>,
-    ) -> Result<(), IriParseError> {
+    pub fn resolve<T: std::ops::Deref<Target = str>>(&mut self, base: &Iri<T>) -> Result<(), IriParseError> {
         let mut out = String::with_capacity(self.as_str().len() + base.as_str().len());
-        let pos = resolve(
-            (base.as_str(), base.positions()),
-            (self.as_str(), self.positions),
-            &mut out,
-        );
+        let pos = resolve((base.as_str(), base.positions()), (self.as_str(), self.positions), &mut out);
         validate_resolved_path(&out, pos)?;
         *self = IriRefBuf::from_raw_parts(out, pos);
         Ok(())
@@ -167,16 +157,9 @@ impl UriRefBuf {
         }
         rebuild_uri(self, Edit::Fragment(fragment.map(str::to_string)))
     }
-    pub fn resolve<T: std::ops::Deref<Target = str>>(
-        &mut self,
-        base: &Uri<T>,
-    ) -> Result<(), IriParseError> {
+    pub fn resolve<T: std::ops::Deref<Target = str>>(&mut self, base: &Uri<T>) -> Result<(), IriParseError> {
         let mut out = String::with_capacity(self.as_str().len() + base.as_str().len());
-        let pos = resolve(
-            (base.as_str(), base.positions()),
-            (self.as_str(), self.positions),
-            &mut out,
-        );
+        let pos = resolve((base.as_str(), base.positions()), (self.as_str(), self.positions), &mut out);
         validate_resolved_path(&out, pos)?;
         *self = UriRefBuf::from_raw_parts(out, pos);
         Ok(())
@@ -257,19 +240,11 @@ fn rebuild(buf: &mut IriRefBuf, edit: Edit, is_iri: bool) -> Result<(), IriParse
         let (scheme, authority, path, query, fragment) = destructure(s, buf.positions);
         let mut out = String::with_capacity(s.len() + 8);
         match &edit {
-            Edit::Scheme(new) => {
-                write_iri(&mut out, new.as_deref(), authority, path, query, fragment)
-            }
-            Edit::Authority(new) => {
-                write_iri(&mut out, scheme, new.as_deref(), path, query, fragment)
-            }
+            Edit::Scheme(new) => write_iri(&mut out, new.as_deref(), authority, path, query, fragment),
+            Edit::Authority(new) => write_iri(&mut out, scheme, new.as_deref(), path, query, fragment),
             Edit::Path(new) => write_iri(&mut out, scheme, authority, new, query, fragment),
-            Edit::Query(new) => {
-                write_iri(&mut out, scheme, authority, path, new.as_deref(), fragment)
-            }
-            Edit::Fragment(new) => {
-                write_iri(&mut out, scheme, authority, path, query, new.as_deref())
-            }
+            Edit::Query(new) => write_iri(&mut out, scheme, authority, path, new.as_deref(), fragment),
+            Edit::Fragment(new) => write_iri(&mut out, scheme, authority, path, query, new.as_deref()),
         }
         out
     };
@@ -279,14 +254,7 @@ fn rebuild(buf: &mut IriRefBuf, edit: Edit, is_iri: bool) -> Result<(), IriParse
     Ok(())
 }
 
-fn write_iri(
-    out: &mut String,
-    scheme: Option<&str>,
-    authority: Option<&str>,
-    path: &str,
-    query: Option<&str>,
-    fragment: Option<&str>,
-) {
+fn write_iri(out: &mut String, scheme: Option<&str>, authority: Option<&str>, path: &str, query: Option<&str>, fragment: Option<&str>) {
     if let Some(s) = scheme {
         out.push_str(s);
         out.push(':');
@@ -314,19 +282,10 @@ fn rebuild_uri(buf: &mut UriRefBuf, edit: Edit) -> Result<(), IriParseError> {
     Ok(())
 }
 
-fn destructure(
-    s: &str,
-    p: crate::parse::Positions,
-) -> (Option<&str>, Option<&str>, &str, Option<&str>, Option<&str>) {
-    let scheme = if p.scheme_end > 0 {
-        Some(&s[..p.scheme_end - 1])
-    } else {
-        None
-    };
+fn destructure(s: &str, p: crate::parse::Positions) -> (Option<&str>, Option<&str>, &str, Option<&str>, Option<&str>) {
+    let scheme = if p.scheme_end > 0 { Some(&s[..p.scheme_end - 1]) } else { None };
     let authority = if p.authority_end > p.scheme_end + 2
-        || (p.authority_end == p.scheme_end + 2
-            && p.scheme_end + 2 <= s.len()
-            && &s[p.scheme_end..p.scheme_end + 2] == "//")
+        || (p.authority_end == p.scheme_end + 2 && p.scheme_end + 2 <= s.len() && &s[p.scheme_end..p.scheme_end + 2] == "//")
     {
         Some(&s[p.scheme_end + 2..p.authority_end])
     } else {
@@ -338,11 +297,6 @@ fn destructure(
     } else {
         None
     };
-    let fragment = if s.len() > p.query_end {
-        Some(&s[p.query_end + 1..])
-    } else {
-        None
-    };
+    let fragment = if s.len() > p.query_end { Some(&s[p.query_end + 1..]) } else { None };
     (scheme, authority, path, query, fragment)
 }
-

@@ -1,9 +1,6 @@
 //! RFC 3986/3987 §6.2.2 syntax-based normalization — streaming comparators + hash.
 
-use std::{
-    cmp::Ordering,
-    hash::Hasher,
-};
+use std::{cmp::Ordering, hash::Hasher};
 
 use pct::PctStr;
 
@@ -13,16 +10,8 @@ pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
     if a == b {
         return true;
     }
-    let sa = if pa.scheme_end > 0 {
-        Some(&a[..pa.scheme_end - 1])
-    } else {
-        None
-    };
-    let sb = if pb.scheme_end > 0 {
-        Some(&b[..pb.scheme_end - 1])
-    } else {
-        None
-    };
+    let sa = if pa.scheme_end > 0 { Some(&a[..pa.scheme_end - 1]) } else { None };
+    let sb = if pb.scheme_end > 0 { Some(&b[..pb.scheme_end - 1]) } else { None };
     if sa.map(str::len) != sb.map(str::len) {
         return false;
     }
@@ -76,35 +65,15 @@ pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
     if !opt_pct_unreserved_eq(qa, qb) {
         return false;
     }
-    let fa = if a.len() > pa.query_end {
-        Some(&a[pa.query_end + 1..])
-    } else {
-        None
-    };
-    let fb = if b.len() > pb.query_end {
-        Some(&b[pb.query_end + 1..])
-    } else {
-        None
-    };
+    let fa = if a.len() > pa.query_end { Some(&a[pa.query_end + 1..]) } else { None };
+    let fb = if b.len() > pb.query_end { Some(&b[pb.query_end + 1..]) } else { None };
     opt_pct_unreserved_eq(fa, fb)
 }
 
 pub fn iri_cmp(a: &str, pa: Positions, b: &str, pb: Positions) -> Ordering {
-    let sa = if pa.scheme_end > 0 {
-        &a[..pa.scheme_end - 1]
-    } else {
-        ""
-    };
-    let sb = if pb.scheme_end > 0 {
-        &b[..pb.scheme_end - 1]
-    } else {
-        ""
-    };
-    match sa
-        .bytes()
-        .map(|c| c.to_ascii_lowercase())
-        .cmp(sb.bytes().map(|c| c.to_ascii_lowercase()))
-    {
+    let sa = if pa.scheme_end > 0 { &a[..pa.scheme_end - 1] } else { "" };
+    let sb = if pb.scheme_end > 0 { &b[..pb.scheme_end - 1] } else { "" };
+    match sa.bytes().map(|c| c.to_ascii_lowercase()).cmp(sb.bytes().map(|c| c.to_ascii_lowercase())) {
         Ordering::Equal => {}
         o => return o,
     }
@@ -213,9 +182,7 @@ fn opt_pct_unreserved_eq(a: Option<&str>, b: Option<&str>) -> bool {
 }
 
 pub fn pct_unreserved_eq(a: &str, b: &str) -> bool {
-    if memchr::memchr(b'%', a.as_bytes()).is_none()
-        && memchr::memchr(b'%', b.as_bytes()).is_none()
-    {
+    if memchr::memchr(b'%', a.as_bytes()).is_none() && memchr::memchr(b'%', b.as_bytes()).is_none() {
         return a.as_bytes() == b.as_bytes();
     }
     // SAFETY: callers pass validated substrings of an already-parsed IRI, so

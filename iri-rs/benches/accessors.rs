@@ -10,10 +10,7 @@ mod corpus;
 use corpus::IRI_CORPUS;
 
 fn bench(c: &mut Criterion) {
-    let iris: Vec<(&str, Iri<&str>)> = IRI_CORPUS
-        .iter()
-        .filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i)))
-        .collect();
+    let iris: Vec<(&str, Iri<&str>)> = IRI_CORPUS.iter().filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i))).collect();
 
     let mut g = c.benchmark_group("facade_accessors/iri_fields");
     for (label, iri) in &iris {
@@ -30,10 +27,7 @@ fn bench(c: &mut Criterion) {
     }
     g.finish();
 
-    let bufs: Vec<(&str, IriBuf)> = IRI_CORPUS
-        .iter()
-        .filter_map(|c| IriBuf::new(c.input).ok().map(|b| (c.label, b)))
-        .collect();
+    let bufs: Vec<(&str, IriBuf)> = IRI_CORPUS.iter().filter_map(|c| IriBuf::new(c.input).ok().map(|b| (c.label, b))).collect();
 
     let mut g = c.benchmark_group("facade_accessors/hash");
     for (label, buf) in &bufs {

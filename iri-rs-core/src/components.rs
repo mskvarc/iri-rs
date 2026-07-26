@@ -8,11 +8,7 @@ use crate::types::{Iri, IriRef, Uri, UriRef};
 pub fn path_segments(path: &str) -> PathSegments<'_> {
     let rest = path.strip_prefix('/').unwrap_or(path);
     PathSegments {
-        inner: if rest.is_empty() {
-            None
-        } else {
-            Some(rest.split('/'))
-        },
+        inner: if rest.is_empty() { None } else { Some(rest.split('/')) },
     }
 }
 
@@ -178,10 +174,7 @@ mod tests {
 
     #[test]
     fn split_auth_full() {
-        assert_eq!(
-            split_authority("user:pass@host:80"),
-            (Some("user:pass"), "host", Some("80"))
-        );
+        assert_eq!(split_authority("user:pass@host:80"), (Some("user:pass"), "host", Some("80")));
     }
 
     #[test]

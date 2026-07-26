@@ -117,8 +117,7 @@ fn write_relative_path(base_path: &str, tgt_path: &str, output: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parse::find_iri_positions;
-    use crate::resolve::resolve;
+    use crate::{parse::find_iri_positions, resolve::resolve};
 
     fn rel(base: &str, tgt: &str) -> String {
         let bp = find_iri_positions(base);

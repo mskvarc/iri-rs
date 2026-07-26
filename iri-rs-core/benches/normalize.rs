@@ -6,10 +6,7 @@ mod corpus;
 use corpus::IRI_CORPUS;
 
 fn bench_segment_iter(c: &mut Criterion) {
-    let iris: Vec<(&str, Iri<&str>)> = IRI_CORPUS
-        .iter()
-        .filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i)))
-        .collect();
+    let iris: Vec<(&str, Iri<&str>)> = IRI_CORPUS.iter().filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i))).collect();
 
     let mut g = c.benchmark_group("normalize/segments_iter");
     for (label, iri) in &iris {
