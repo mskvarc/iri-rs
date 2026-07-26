@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.3.5] - 2026-07-26
+
+### 🐛 Bug Fixes
+- Correctly handle dot segments
+
+### 🧹 Chores
+- Update changelog
+
 ## [v3.3.4] - 2026-04-27
 
 ### 📚 Documentation
