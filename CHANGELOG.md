@@ -2,12 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.3.6] - 2026-07-26
+
+### ⚡ Performance
+- Lower the cost of dot segment checks
+
+### 🐛 Bug Fixes
+- Clippy warnings
+
+### 🧹 Chores
+- Update dependencies
+
 ## [v3.3.5] - 2026-07-26
 
 ### 🐛 Bug Fixes
 - Correctly handle dot segments
 
 ### 🧹 Chores
+- Changelog
 - Update changelog
 
 ## [v3.3.4] - 2026-04-27
