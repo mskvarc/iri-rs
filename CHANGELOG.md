@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.3.7] - 2026-07-26
+
+### 🐛 Bug Fixes
+- Adopt upstream iref 4.0 correctness fixes
+
 ## [v3.3.6] - 2026-07-26
 
 ### ⚡ Performance
@@ -11,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - Clippy warnings
 
 ### 🧹 Chores
+- Changelog
 - Update dependencies
 
 ## [v3.3.5] - 2026-07-26
@@ -18,28 +24,18 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 - Correctly handle dot segments
 
-### 🧹 Chores
-- Changelog
-- Update changelog
-
-## [v3.3.4] - 2026-04-27
-
 ### 📚 Documentation
 - Update changelog
 
 ### 🚀 Features
 - Unchecked constructors
-
-### 🧹 Chores
-- Bump version
-- Bump version
-
-## [v3.3.3] - 2026-04-27
-
-### 🚀 Features
 - Bring back relative functionality
 
 ### 🧹 Chores
+- Changelog
+- Update changelog
+- Bump version
+- Bump version
 - Bump version
 - Update changelog
 
@@ -115,7 +111,7 @@ All notable changes to this project will be documented in this file.
 - New rustfmt configuration
 - Remove changelog
 
-## [v3.2.0] - 2024-07-25
+## [v3.2.2] - 2024-07-25
 
 ### 💡 Other
 - :suffix.
