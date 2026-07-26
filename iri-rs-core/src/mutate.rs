@@ -1,6 +1,7 @@
 //! Mutation methods on owning buffer types (`IriBuf`, `IriRefBuf`, `UriBuf`, `UriRefBuf`).
 
 use crate::{
+    components::first_segment_has_colon,
     error::{InvalidIri, InvalidUri, IriParseError},
     parse::find_iri_ref_positions,
     resolve::resolve,
@@ -262,6 +263,18 @@ fn write_iri(out: &mut String, scheme: Option<&str>, authority: Option<&str>, pa
     if let Some(a) = authority {
         out.push_str("//");
         out.push_str(a);
+    } else {
+        // Removing a component can leave the path looking like the component
+        // that is now gone. Both cases are recoverable with a dot segment,
+        // which denotes the same path but cannot be misread on the way back in.
+        if path.starts_with("//") {
+            // RFC 3986 §3.3: with no authority, a path may not begin with `//`.
+            out.push_str("/.");
+        } else if scheme.is_none() && first_segment_has_colon(path) {
+            // RFC 3986 §4.2: the first segment of a relative-path reference
+            // may not hold a `:`, or it reads as a scheme.
+            out.push_str("./");
+        }
     }
     out.push_str(path);
     if let Some(q) = query {
@@ -299,4 +312,136 @@ fn destructure(s: &str, p: crate::parse::Positions) -> (Option<&str>, Option<&st
     };
     let fragment = if s.len() > p.query_end { Some(&s[p.query_end + 1..]) } else { None };
     (scheme, authority, path, query, fragment)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn iri_ref(s: &str) -> IriRefBuf {
+        IriRef::parse(s.to_owned()).unwrap()
+    }
+
+    /// Removing a scheme can leave the first path segment holding a `:`, which
+    /// would be read back as a scheme of its own (RFC 3986 §4.2).
+    #[test]
+    fn removing_a_scheme_disambiguates_a_first_segment_with_a_colon() {
+        let mut buf = iri_ref("scheme:a:b/c");
+        buf.set_scheme(None).unwrap();
+
+        assert_eq!(buf.as_str(), "./a:b/c");
+        assert_eq!(buf.scheme(), None, "the path must not be read back as a scheme");
+        assert_eq!(buf.path(), "./a:b/c");
+    }
+
+    /// Removing an authority can leave the path starting with `//`, which
+    /// would be read back as an authority (RFC 3986 §3.3).
+    #[test]
+    fn removing_an_authority_disambiguates_a_path_starting_with_two_slashes() {
+        let mut buf = iri_ref("//host//path");
+        buf.set_authority(None).unwrap();
+
+        assert_eq!(buf.as_str(), "/.//path");
+        assert_eq!(buf.authority(), None, "the path must not be read back as an authority");
+        assert_eq!(buf.path(), "/.//path");
+    }
+
+    #[test]
+    fn removing_an_authority_disambiguates_under_a_scheme_too() {
+        let mut buf = iri_ref("http://host//path");
+        buf.set_authority(None).unwrap();
+
+        assert_eq!(buf.as_str(), "http:/.//path");
+        assert_eq!(buf.scheme(), Some("http"));
+        assert_eq!(buf.authority(), None);
+        assert_eq!(buf.path(), "/.//path");
+    }
+
+    #[test]
+    fn setting_an_ambiguous_path_disambiguates_it() {
+        let mut buf = iri_ref("http:x");
+        buf.set_path("//foo").unwrap();
+        assert_eq!(buf.as_str(), "http:/.//foo");
+        assert_eq!(buf.authority(), None);
+
+        let mut buf = iri_ref("x");
+        buf.set_path("a:b").unwrap();
+        assert_eq!(buf.as_str(), "./a:b");
+        assert_eq!(buf.scheme(), None);
+    }
+
+    #[test]
+    fn unambiguous_removals_gain_no_dot_segment() {
+        let mut buf = iri_ref("http://host/path");
+        buf.set_authority(None).unwrap();
+        assert_eq!(buf.as_str(), "http:/path");
+
+        let mut buf = iri_ref("scheme:/a/b");
+        buf.set_scheme(None).unwrap();
+        assert_eq!(buf.as_str(), "/a/b");
+
+        // Only the *first* segment may not hold a `:`.
+        let mut buf = iri_ref("scheme:a/b:c");
+        buf.set_scheme(None).unwrap();
+        assert_eq!(buf.as_str(), "a/b:c");
+
+        // With an authority present the `//` is unambiguous.
+        let mut buf = iri_ref("http://host//path");
+        buf.set_scheme(None).unwrap();
+        assert_eq!(buf.as_str(), "//host//path");
+    }
+
+    #[test]
+    fn uri_buffers_disambiguate_the_same_way() {
+        let mut buf: UriRefBuf = UriRef::parse("//host//path".to_owned()).unwrap();
+        buf.set_authority(None).unwrap();
+        assert_eq!(buf.as_str(), "/.//path");
+        assert_eq!(buf.authority(), None);
+
+        let mut buf: UriRefBuf = UriRef::parse("scheme:a:b/c".to_owned()).unwrap();
+        buf.set_scheme(None).unwrap();
+        assert_eq!(buf.as_str(), "./a:b/c");
+        assert_eq!(buf.scheme(), None);
+    }
+
+    /// Upstream `iref` 4.0.1 fixed panics and silent corruption when a
+    /// percent-encoded value reached a `set_*` method: it sized buffers with
+    /// the decoded character count instead of the encoded byte length. This
+    /// recomposes the whole string rather than splicing bytes, so the bug
+    /// cannot occur — which stays true only as long as that holds.
+    #[test]
+    fn percent_encoded_values_survive_mutation() {
+        let mut buf = iri_ref("scheme://user:pass@example.com:8080/path");
+        buf.set_authority(Some("%6Eew_long_host.org")).unwrap();
+        assert_eq!(buf.as_str(), "scheme://%6Eew_long_host.org/path");
+        assert_eq!(buf.authority(), Some("%6Eew_long_host.org"));
+
+        let mut buf = iri_ref("scheme://%65xample.com:8080/path");
+        buf.set_authority(Some("example.com")).unwrap();
+        assert_eq!(buf.authority(), Some("example.com"));
+
+        let mut buf = iri_ref("scheme://authority/path");
+        buf.set_query(Some("%71uery")).unwrap();
+        buf.set_fragment(Some("%66rag")).unwrap();
+        assert_eq!(buf.as_str(), "scheme://authority/path?%71uery#%66rag");
+        assert_eq!(buf.query(), Some("%71uery"));
+        assert_eq!(buf.fragment(), Some("%66rag"));
+
+        buf.set_fragment(None).unwrap();
+        assert_eq!(buf.as_str(), "scheme://authority/path?%71uery");
+    }
+
+    /// The inserted dot segments denote the same path, so resolving the result
+    /// against a base reproduces the components the edit intended.
+    #[test]
+    fn disambiguated_results_resolve_to_the_intended_path() {
+        let mut buf = iri_ref("//host//path");
+        buf.set_authority(None).unwrap();
+
+        let base = Iri::parse("http://example.org/a/b").unwrap();
+        let resolved = buf.resolved(&base).unwrap();
+        assert_eq!(resolved.as_str(), "http://example.org//path");
+        assert_eq!(resolved.authority(), Some("example.org"));
+        assert_eq!(resolved.path(), "//path");
+    }
 }

@@ -4,7 +4,10 @@ use std::{cmp::Ordering, hash::Hasher};
 
 use pct::PctStr;
 
-use crate::parse::Positions;
+use crate::{
+    components::{normalize_path, path_is_normalized},
+    parse::Positions,
+};
 
 pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
     if a == b {
@@ -128,51 +131,6 @@ pub fn path_eq_normalized(a: &str, b: &str) -> bool {
     pct_unreserved_eq(&an, &bn)
 }
 
-fn normalize_path(input: &str) -> String {
-    if memchr::memchr(b'.', input.as_bytes()).is_none() {
-        return input.to_owned();
-    }
-    let mut out = String::with_capacity(input.len());
-    let mut input = input;
-    let had_leading_slash = input.starts_with('/');
-
-    while !input.is_empty() {
-        if let Some(rest) = input.strip_prefix("../") {
-            input = rest;
-        } else if let Some(rest) = input.strip_prefix("./") {
-            input = rest;
-        } else if input.starts_with("/./") {
-            input = &input[2..];
-        } else if input == "/." {
-            input = "/";
-        } else if input.starts_with("/../") {
-            input = &input[3..];
-            remove_last(&mut out, had_leading_slash);
-        } else if input == "/.." {
-            input = "/";
-            remove_last(&mut out, had_leading_slash);
-        } else if input == "." || input == ".." {
-            input = "";
-        } else {
-            let with_slash = if let Some(rest) = input.strip_prefix('/') {
-                out.push('/');
-                rest
-            } else {
-                input
-            };
-            let slash = memchr::memchr(b'/', with_slash.as_bytes()).unwrap_or(with_slash.len());
-            out.push_str(&with_slash[..slash]);
-            input = &with_slash[slash..];
-        }
-    }
-    out
-}
-
-fn remove_last(out: &mut String, _had_leading_slash: bool) {
-    let last = memchr::memrchr(b'/', out.as_bytes()).unwrap_or(0);
-    out.truncate(last);
-}
-
 fn opt_pct_unreserved_eq(a: Option<&str>, b: Option<&str>) -> bool {
     match (a, b) {
         (Some(x), Some(y)) => pct_unreserved_eq(x, y),
@@ -213,7 +171,7 @@ pub fn normalized_hash<H: Hasher>(iri: &str, p: Positions, state: &mut H) {
         }
     }
     let path = &iri[p.authority_end..p.path_end];
-    if memchr::memchr(b'.', path.as_bytes()).is_none() {
+    if path_is_normalized(path) {
         hash_pct_unreserved(path, state);
     } else {
         let np = normalize_path(path);
@@ -295,5 +253,80 @@ mod tests {
     #[test]
     fn different_scheme_ne() {
         assert!(!eq("http://a", "https://a"));
+    }
+
+    fn hash_of(s: &str) -> u64 {
+        use std::hash::{DefaultHasher, Hasher};
+        let mut hasher = DefaultHasher::new();
+        normalized_hash(s, find_iri_ref_positions(s), &mut hasher);
+        hasher.finish()
+    }
+
+    /// A `..` a relative reference cannot resolve away still moves the target
+    /// it resolves to, so it may not be normalized out of the comparison.
+    #[test]
+    fn relative_references_climbing_past_their_root_are_distinct() {
+        for (a, b) in [("../a", "a"), ("..", ""), ("a/../..", ""), ("../..", ".."), ("../a", "./a")] {
+            assert!(!eq(a, b), "`{a}` should not equal `{b}`");
+        }
+    }
+
+    #[test]
+    fn equal_relative_references_are_recognised() {
+        for (a, b) in [("../..", "../../"), ("./a", "a"), ("a/../b", "b"), ("../a/..", "../"), ("x/./y", "x/y")] {
+            assert!(eq(a, b), "`{a}` should equal `{b}`");
+        }
+    }
+
+    /// An empty segment is a path component of its own: under an authority
+    /// `//a` and `/a` name different resources.
+    #[test]
+    fn empty_path_segments_are_significant() {
+        assert!(!eq("http://host//a", "http://host/a"));
+        assert!(eq("http://host/b/..//a", "http://host//a"));
+    }
+
+    #[test]
+    fn hash_agrees_with_eq() {
+        for (a, b) in [
+            ("http://a/b/../c", "http://a/c"),
+            ("../..", "../../"),
+            ("./a", "a"),
+            ("a/../b", "b"),
+            ("http://host/b/..//a", "http://host//a"),
+        ] {
+            assert!(eq(a, b), "`{a}` should equal `{b}`");
+            assert_eq!(hash_of(a), hash_of(b), "`{a}` and `{b}` hash differently");
+        }
+    }
+
+    /// `normalized_hash` skips normalizing when the path is already normal.
+    /// Claiming that wrongly would hash an unnormalized path and drop equal
+    /// IRIs into different buckets, so the shortcut may be conservative
+    /// (`./a:b` is already normal but is not recognised as such) yet never
+    /// optimistic.
+    #[test]
+    fn hash_shortcut_is_never_optimistic() {
+        for path in [
+            "", "/", "/a/b", "a:b", "./a:b", "a/b:c", "/a:b", "a/../b", "..", "/.//", "mailto@x", "a//b", "/a/./b",
+        ] {
+            if path_is_normalized(path) {
+                assert_eq!(normalize_path(path), path, "`{path}` was claimed normal but normalization changes it");
+            }
+        }
+    }
+
+    #[test]
+    fn paths_needing_a_colon_guard_still_hash_together() {
+        assert!(eq("urn:a:b", "urn:./a:b"));
+        assert_eq!(hash_of("urn:a:b"), hash_of("urn:./a:b"));
+    }
+
+    #[test]
+    fn distinct_references_hash_apart() {
+        for (a, b) in [("../a", "a"), ("..", ""), ("http://host//a", "http://host/a")] {
+            assert!(!eq(a, b), "`{a}` should not equal `{b}`");
+            assert_ne!(hash_of(a), hash_of(b), "`{a}` and `{b}` hash alike");
+        }
     }
 }

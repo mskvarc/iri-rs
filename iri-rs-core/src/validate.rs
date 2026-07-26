@@ -379,4 +379,38 @@ mod tests {
         let p = crate::parse::find_iri_positions(s);
         validate_iri(s, p, true).unwrap();
     }
+
+    fn iri_ref_is_valid(s: &str) -> bool {
+        validate_iri_ref(s, crate::parse::find_iri_ref_positions(s), true).is_ok()
+    }
+
+    #[test]
+    fn malformed_references_are_rejected() {
+        for input in [
+            "http://host name",      // space in host
+            "http://host\0name",     // null byte
+            "http://[::1",           // unclosed bracket
+            "http://ho st/path",     // space in authority
+            "htt p://host",          // space in scheme
+            "http://host/pa th",     // space in path
+            "http://host?qu ery",    // space in query
+            "http://host#fra gment", // space in fragment
+        ] {
+            assert!(!iri_ref_is_valid(input), "should reject `{input}`");
+        }
+    }
+
+    #[test]
+    fn relative_reference_forms_are_accepted() {
+        for input in [
+            "",            // empty
+            "/path",       // absolute path
+            "../..",       // relative reference
+            "?query",      // query only
+            "#fragment",   // fragment only
+            "//authority", // authority without scheme
+        ] {
+            assert!(iri_ref_is_valid(input), "should accept `{input}`");
+        }
+    }
 }
