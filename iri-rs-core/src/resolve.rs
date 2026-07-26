@@ -1,5 +1,5 @@
 //! Relative reference resolution — oxiri port. Writes directly into output buffer.
-use memchr::{memchr, memmem, memrchr};
+use memchr::{memchr, memchr_iter, memrchr};
 
 use crate::parse::Positions;
 
@@ -13,29 +13,18 @@ pub fn resolve(base: (&str, Positions), relative: (&str, Positions), output_buff
     // verbatim when its path carries dot segments.
     if rel_p.scheme_end != 0 {
         output_buffer.reserve_exact(rel_iri.len());
-        let path = &rel_iri[rel_p.authority_end..rel_p.path_end];
-        if !path_has_dot_segments(path) {
+        if !path_has_dot_segments(&rel_iri[rel_p.authority_end..rel_p.path_end]) {
             output_buffer.push_str(rel_iri);
             return rel_p;
         }
-        output_buffer.push_str(&rel_iri[..rel_p.authority_end]);
-        write_path_without_dot_segments_to(path, output_buffer, rel_p.authority_end, false);
-        let path_end = output_buffer.len();
-        output_buffer.push_str(&rel_iri[rel_p.path_end..]);
-        return Positions {
-            scheme_end: rel_p.scheme_end,
-            authority_end: rel_p.authority_end,
-            path_end,
-            query_end: path_end + (rel_p.query_end - rel_p.path_end),
-        };
+        return rebuild_without_dot_segments(rel_iri, rel_p, rel_p.scheme_end, rel_p.authority_end, output_buffer);
     }
     // RFC 3986 §5.2.2, network-path branch: the base contributes only its
     // scheme, but `T.path = remove_dot_segments(R.path)` applies just the same.
     if rel_p.authority_end > 0 {
         output_buffer.reserve_exact(base_p.scheme_end + rel_iri.len());
         output_buffer.push_str(&base_iri[..base_p.scheme_end]);
-        let path = &rel_iri[rel_p.authority_end..rel_p.path_end];
-        if !path_has_dot_segments(path) {
+        if !path_has_dot_segments(&rel_iri[rel_p.authority_end..rel_p.path_end]) {
             output_buffer.push_str(rel_iri);
             return Positions {
                 scheme_end: base_p.scheme_end,
@@ -44,17 +33,13 @@ pub fn resolve(base: (&str, Positions), relative: (&str, Positions), output_buff
                 query_end: base_p.scheme_end + rel_p.query_end,
             };
         }
-        output_buffer.push_str(&rel_iri[..rel_p.authority_end]);
-        let authority_end = base_p.scheme_end + rel_p.authority_end;
-        write_path_without_dot_segments_to(path, output_buffer, authority_end, false);
-        let path_end = output_buffer.len();
-        output_buffer.push_str(&rel_iri[rel_p.path_end..]);
-        return Positions {
-            scheme_end: base_p.scheme_end,
-            authority_end,
-            path_end,
-            query_end: path_end + (rel_p.query_end - rel_p.path_end),
-        };
+        return rebuild_without_dot_segments(
+            rel_iri,
+            rel_p,
+            base_p.scheme_end,
+            base_p.scheme_end + rel_p.authority_end,
+            output_buffer,
+        );
     }
     if rel_p.path_end > 0 {
         if rel_iri.starts_with('/') {
@@ -117,6 +102,35 @@ pub fn resolve(base: (&str, Positions), relative: (&str, Positions), output_buff
     base_p
 }
 
+/// Rebuilds a reference whose path carries dot segments: everything up to the
+/// path is copied verbatim, the path goes through RFC 3986 §5.2.4
+/// `remove_dot_segments`, and the query/fragment tail is copied verbatim.
+///
+/// `scheme_end`/`authority_end` are positions in the *output*; the caller has
+/// already written any base prefix (and reserved capacity) before calling.
+/// Outlined and `#[cold]` so the verbatim-copy fast path of [`resolve`] stays
+/// small — references with dot segments are rare in practice.
+#[cold]
+#[inline(never)]
+fn rebuild_without_dot_segments(
+    rel_iri: &str,
+    rel_p: Positions,
+    scheme_end: usize,
+    authority_end: usize,
+    output_buffer: &mut String,
+) -> Positions {
+    output_buffer.push_str(&rel_iri[..rel_p.authority_end]);
+    write_path_without_dot_segments_to(&rel_iri[rel_p.authority_end..rel_p.path_end], output_buffer, authority_end, false);
+    let path_end = output_buffer.len();
+    output_buffer.push_str(&rel_iri[rel_p.path_end..]);
+    Positions {
+        scheme_end,
+        authority_end,
+        path_end,
+        query_end: path_end + (rel_p.query_end - rel_p.path_end),
+    }
+}
+
 /// Checks whether the segment of `path` starting at `start` is a complete `.`
 /// or `..` segment.
 ///
@@ -144,28 +158,48 @@ const fn segment_is_dots(path: &[u8], start: usize) -> bool {
 /// This guards the hot path of [`resolve`]: most references have a path with no
 /// `.` byte at all, and a single SIMD scan rejects them outright so the caller
 /// can keep its verbatim copy instead of walking the path segment by segment.
+#[inline]
 fn path_has_dot_segments(path: &str) -> bool {
     let path = path.as_bytes();
-    if memchr(b'.', path).is_none() {
-        return false;
+    match memchr(b'.', path) {
+        None => false,
+        Some(first_dot) => path_has_dot_segments_from(path, first_dot),
     }
-    if segment_is_dots(path, 0) {
+}
+
+/// Continuation of [`path_has_dot_segments`] once a `.` byte is known to exist
+/// at `first_dot`. Kept out of line so only the SIMD reject inlines into
+/// [`resolve`].
+fn path_has_dot_segments_from(path: &[u8], first_dot: usize) -> bool {
+    // A dot segment's first `.` sits either at the start of the path or right
+    // after a `/`, so it suffices to probe byte 0 once and then visit each `.`
+    // occurrence from `first_dot` on, checking whether it follows a `/`. The
+    // resumable `memchr_iter` makes this a single SIMD pass regardless of how
+    // many non-segment dots (file extensions, version numbers) the path holds.
+    if first_dot == 0 && segment_is_dots(path, 0) {
         return true;
     }
-    let mut offset = 0;
-    while let Some(index) = memmem::find(&path[offset..], b"/.") {
-        // `+ 1` skips the `/`, landing on the first byte of the segment. The
-        // offset therefore advances by at least one byte per iteration.
-        let segment_start = offset + index + 1;
-        if segment_is_dots(path, segment_start) {
+    for index in memchr_iter(b'.', &path[first_dot..]) {
+        let dot = first_dot + index;
+        if dot > 0 && path[dot - 1] == b'/' && segment_is_dots(path, dot) {
             return true;
         }
-        offset = segment_start;
     }
     false
 }
 
 fn write_path_without_dot_segments_to(mut input: &str, output: &mut String, output_path_start: usize, with_prefix_slash: bool) {
+    // Dot-segment-free input — the overwhelmingly common case — needs no
+    // segment-by-segment walk: `remove_dot_segments` is the identity on it, so
+    // a single copy suffices. Callers passing `with_prefix_slash` guarantee a
+    // rootless `input`, and the walk below would emit exactly one leading `/`.
+    if !path_has_dot_segments(input) {
+        if with_prefix_slash {
+            output.push('/');
+        }
+        output.push_str(input);
+        return;
+    }
     if with_prefix_slash {
         if input.starts_with("./") {
             input = &input[1..];
