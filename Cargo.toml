@@ -9,7 +9,7 @@ resolver = "3"
 pedantic = { level = "warn", priority = -1 }
 
 [workspace.package]
-version = "3.4.0"
+version = "3.4.1"
 edition = "2024"
 rust-version = "1.85.0"
 authors = [
@@ -28,6 +28,6 @@ categories = [
 ]
 
 [workspace.dependencies]
-iri-rs-core = { path = "iri-rs-core", version = "3.3.6" }
-iri-rs-enum = { path = "iri-rs-enum", version = "3.3.6" }
-iri-rs-static = { path = "iri-rs-static", version = "3.3.6" }
+iri-rs-core = { path = "iri-rs-core", version = "3.4.1" }
+iri-rs-enum = { path = "iri-rs-enum", version = "3.4.1" }
+iri-rs-static = { path = "iri-rs-static", version = "3.4.1" }
