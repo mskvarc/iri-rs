@@ -2,10 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.4.0] - 2026-08-04
+
+### 🐛 Bug Fixes
+- Clippy warnings
+
+### 📚 Documentation
+- Stop normalize_path linking to a private item
+
+### 🔧 Refactor
+- Rename fast-hash feature to bytewise
+
 ## [v3.3.7] - 2026-07-26
 
 ### 🐛 Bug Fixes
 - Adopt upstream iref 4.0 correctness fixes
+
+### 🧹 Chores
+- Changelog
 
 ## [v3.3.6] - 2026-07-26
 
