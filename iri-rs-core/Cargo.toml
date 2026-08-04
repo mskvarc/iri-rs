@@ -14,7 +14,7 @@ categories.workspace = true
 [features]
 default = []
 serde = ["dep:serde"]
-fast-hash = []
+bytewise = []
 
 [dependencies]
 memchr = "2.8.3"

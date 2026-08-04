@@ -172,8 +172,8 @@ impl FromStr for IriRef<String> {
     }
 }
 
-#[cfg(feature = "fast-hash")]
-mod fast_hash_impls {
+#[cfg(feature = "bytewise")]
+mod bytewise_impls {
     use super::*;
     impl<T: Deref<Target = str>> PartialEq for IriRef<T> {
         fn eq(&self, other: &Self) -> bool {
@@ -219,7 +219,7 @@ mod fast_hash_impls {
     }
 }
 
-#[cfg(not(feature = "fast-hash"))]
+#[cfg(not(feature = "bytewise"))]
 mod normalized_impls {
     use super::*;
     use crate::normalize::{iri_cmp, iri_eq, normalized_hash};
@@ -755,8 +755,8 @@ impl<'a> From<Uri<&'a str>> for Uri<String> {
     }
 }
 
-#[cfg(feature = "fast-hash")]
-mod uri_fast {
+#[cfg(feature = "bytewise")]
+mod uri_bytewise {
     use super::*;
     impl<T: Deref<Target = str>> PartialEq for UriRef<T> {
         fn eq(&self, other: &Self) -> bool {
@@ -802,7 +802,7 @@ mod uri_fast {
     }
 }
 
-#[cfg(not(feature = "fast-hash"))]
+#[cfg(not(feature = "bytewise"))]
 mod uri_norm {
     use super::*;
     use crate::normalize::{iri_cmp, iri_eq, normalized_hash};

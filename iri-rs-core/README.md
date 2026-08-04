@@ -40,7 +40,13 @@ cargo add iri-rs-core
 | Flag        | Default | Enables                                                            |
 | ----------- | :-----: | ------------------------------------------------------------------ |
 | `serde`     |         | `Serialize` / `Deserialize` for borrowed and owned types           |
-| `fast-hash` |         | Skip re-parse on `Hash` — trades stricter invariants for speed     |
+| `bytewise`  |         | Compare, hash and order byte-wise instead of RFC 3987 normalization |
+
+### `bytewise` changes comparison, not just hashing
+
+`bytewise` swaps the `PartialEq`, `Eq`, `Hash`, `PartialOrd` and `Ord` impls of `Iri`, `IriRef`, `Uri` and `UriRef` for byte-wise ones. Without it, those impls compare and hash the RFC 3987 normalized form, so `http://example.com/%7Ea` and `http://example.com/~a` are equal and hash alike. With it, they are two different IRIs. Byte-wise is considerably cheaper, and it is the right choice when the IRIs you hold are already in the form you want to compare, but it is a semantic change and not only a speed one.
+
+Cargo unifies features across a dependency graph, which makes this a global switch: one dependency enabling `bytewise` changes IRI equality for every crate in the build, including crates that never asked for it. Enable it in an application, or in a library whose whole graph you control, rather than in a library published for others to combine.
 
 ## What's inside
 

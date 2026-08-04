@@ -51,7 +51,7 @@ Fork of [`iref`](https://crates.io/crates/iref), [`static-iref`](https://crates.
 - Reworked `IriEnum` derive ([`iri-rs-enum`](iri-rs-enum/)) — compile-time prefix resolution, `const`-friendly output via `from_raw_parts`.
 - Reworked compile-time macros (`iri!`, `uri!`, `iri_ref!`, `uri_ref!`) — validate at macro expansion, emit `const`-friendly `from_raw_parts` with pre-computed component positions.
 - SIMD-accelerated UTF-8 validation via `simdutf8`, `memchr`-accelerated percent scan, SWAR/byte-level fast paths on `new`, `eq`, `ord`, `hash`, `len`.
-- Opt-in `fast-hash` feature for hashing without re-parsing.
+- Opt-in `bytewise` feature: compare, hash and order IRIs byte-wise instead of by RFC 3987 normalization.
 - Criterion bench suite (`parse`, `accessors`, `resolve`, `normalize`, `mutate`, `normalize_eq`, `validate`).
 - Rust 2024 edition, MSRV 1.85.
 - Renamed crates: `iref` → `iri-rs`, `static-iref` → `iri-rs-static`, `iref-enum` → `iri-rs-enum`.
@@ -71,7 +71,13 @@ cargo add iri-rs
 | `static`    |         | Compile-time `iri!`, `uri!`, `iri_ref!`, `uri_ref!` macros                |
 | `enum`      |         | `#[derive(IriEnum)]` for vocabulary enums                                 |
 | `serde`     |         | `Serialize` / `Deserialize` for borrowed and owned types                  |
-| `fast-hash` |         | Skip re-parse on `Hash` — trades stricter invariants for speed            |
+| `bytewise`  |         | Compare, hash and order byte-wise instead of by RFC 3987 normalization    |
+
+### `bytewise` changes comparison, not just hashing
+
+`bytewise` swaps the `PartialEq`, `Eq`, `Hash`, `PartialOrd` and `Ord` impls of `Iri`, `IriRef`, `Uri` and `UriRef` for byte-wise ones. Without it, those impls compare and hash the RFC 3987 normalized form, so `http://example.com/%7Ea` and `http://example.com/~a` are equal and hash alike. With it, they are two different IRIs. Byte-wise is considerably cheaper, and it is the right choice when the IRIs you hold are already in the form you want to compare, but it is a semantic change and not only a speed one.
+
+Cargo unifies features across a dependency graph, which makes this a global switch: one dependency enabling `bytewise` changes IRI equality for every crate in the build, including crates that never asked for it. Enable it in an application, or in a library whose whole graph you control, rather than in a library published for others to combine.
 
 ## Compile-time IRIs
 
