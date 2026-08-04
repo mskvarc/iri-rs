@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.4.1] - 2026-08-04
+
+### 🐛 Bug Fixes
+- Bump all versions
+
 ## [v3.4.0] - 2026-08-04
 
 ### 🐛 Bug Fixes
@@ -12,6 +17,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🔧 Refactor
 - Rename fast-hash feature to bytewise
+
+### 🧹 Chores
+- Changelog
 
 ## [v3.3.7] - 2026-07-26
 
