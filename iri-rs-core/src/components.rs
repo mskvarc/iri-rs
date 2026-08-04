@@ -56,7 +56,8 @@ pub fn path_is_absolute(path: &str) -> bool {
 /// `isbn:0451` would rewrite a path that was never in doubt, and force every
 /// `urn:`/`tag:`/`mailto:` comparison through an allocation. The two places
 /// that do drop the context, recomposition in [`crate::mutate`] and
-/// [`crate::relativize`], add the `./` themselves via [`first_segment_has_colon`].
+/// [`crate::relativize`], add the `./` themselves via the crate-internal
+/// `first_segment_has_colon`.
 pub fn normalize_path(path: &str) -> String {
     if path_is_normalized(path) {
         return path.to_owned();
