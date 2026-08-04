@@ -24,3 +24,6 @@ syn = { version = "3.0.3", features = ["full"] }
 [dev-dependencies]
 iri-rs-core.workspace = true
 iri-rs-static.workspace = true
+
+[lints]
+workspace = true

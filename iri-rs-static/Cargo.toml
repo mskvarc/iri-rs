@@ -23,3 +23,6 @@ syn = "3.0.3"
 
 [dev-dependencies]
 iri-rs-core.workspace = true
+
+[lints]
+workspace = true

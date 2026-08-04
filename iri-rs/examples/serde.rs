@@ -15,6 +15,6 @@ fn main() {
     let resource: Resource = serde_json::from_str("{ \"iri\": \"https://example.org/foo\" }").unwrap();
     let link: Link = serde_json::from_str("{ \"iri_ref\": \"../bar\" }").unwrap();
 
-    eprintln!("{:?}", resource);
-    eprintln!("{:?}", link);
+    eprintln!("{resource:?}");
+    eprintln!("{link:?}");
 }

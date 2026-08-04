@@ -5,6 +5,7 @@ use std::ops::Deref;
 use crate::types::{Iri, IriRef, Uri, UriRef};
 
 #[inline]
+#[must_use]
 pub fn path_segments(path: &str) -> PathSegments<'_> {
     let rest = path.strip_prefix('/').unwrap_or(path);
     PathSegments {
@@ -32,6 +33,7 @@ impl<'a> DoubleEndedIterator for PathSegments<'a> {
 }
 
 #[inline]
+#[must_use]
 pub fn path_is_absolute(path: &str) -> bool {
     path.starts_with('/')
 }
@@ -58,6 +60,7 @@ pub fn path_is_absolute(path: &str) -> bool {
 /// that do drop the context, recomposition in [`crate::mutate`] and
 /// [`crate::relativize`], add the `./` themselves via the crate-internal
 /// `first_segment_has_colon`.
+#[must_use]
 pub fn normalize_path(path: &str) -> String {
     if path_is_normalized(path) {
         return path.to_owned();
@@ -166,6 +169,7 @@ fn pop_segment(out: &mut String, floor: &mut usize, absolute: bool) {
     }
 }
 
+#[must_use]
 pub fn split_authority(authority: &str) -> (Option<&str>, &str, Option<&str>) {
     let (user_info, rest) = match memchr::memchr(b'@', authority.as_bytes()) {
         Some(i) => (Some(&authority[..i]), &authority[i + 1..]),

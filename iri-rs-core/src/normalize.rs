@@ -73,6 +73,7 @@ pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
     opt_pct_unreserved_eq(fa, fb)
 }
 
+#[must_use]
 pub fn iri_cmp(a: &str, pa: Positions, b: &str, pb: Positions) -> Ordering {
     let sa = if pa.scheme_end > 0 { &a[..pa.scheme_end - 1] } else { "" };
     let sb = if pb.scheme_end > 0 { &b[..pb.scheme_end - 1] } else { "" };
@@ -83,6 +84,7 @@ pub fn iri_cmp(a: &str, pa: Positions, b: &str, pb: Positions) -> Ordering {
     a[pa.scheme_end..].cmp(&b[pb.scheme_end..])
 }
 
+#[must_use]
 pub fn authority_eq(a: &str, b: &str) -> bool {
     let (ui_a, rest_a) = split_user_info(a);
     let (ui_b, rest_b) = split_user_info(b);
@@ -125,6 +127,7 @@ fn split_host_port(s: &str) -> (&str, Option<&str>) {
     }
 }
 
+#[must_use]
 pub fn path_eq_normalized(a: &str, b: &str) -> bool {
     let an = normalize_path(a);
     let bn = normalize_path(b);
@@ -139,6 +142,7 @@ fn opt_pct_unreserved_eq(a: Option<&str>, b: Option<&str>) -> bool {
     }
 }
 
+#[must_use]
 pub fn pct_unreserved_eq(a: &str, b: &str) -> bool {
     if memchr::memchr(b'%', a.as_bytes()).is_none() && memchr::memchr(b'%', b.as_bytes()).is_none() {
         return a.as_bytes() == b.as_bytes();

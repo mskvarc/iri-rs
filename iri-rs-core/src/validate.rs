@@ -97,6 +97,7 @@ pub const PCHAR_OR_SLASH_OR_QUESTION: [bool; 256] = {
 };
 
 #[inline]
+#[must_use]
 pub fn is_ucschar(c: char) -> bool {
     matches!(c,
         '\u{A0}'..='\u{D7FF}'
@@ -119,10 +120,14 @@ pub fn is_ucschar(c: char) -> bool {
 }
 
 #[inline]
+#[must_use]
 pub fn is_iprivate(c: char) -> bool {
     matches!(c, '\u{E000}'..='\u{F8FF}' | '\u{F0000}'..='\u{FFFFD}' | '\u{100000}'..='\u{10FFFD}')
 }
 
+/// # Errors
+///
+/// Returns an error when the scheme is empty, does not start with an ASCII letter, or holds a character outside `ALPHA / DIGIT / "+" / "-" / "."`.
 pub fn validate_scheme(scheme: &str) -> Result<(), IriParseError> {
     let bytes = scheme.as_bytes();
     let first = *bytes.first().ok_or(IriParseErrorKind::EmptyScheme)?;
@@ -135,6 +140,9 @@ pub fn validate_scheme(scheme: &str) -> Result<(), IriParseError> {
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the userinfo, host or port part of the authority is not valid.
 pub fn validate_authority(authority: &str, is_iri: bool) -> Result<(), IriParseError> {
     let Some(body) = authority.strip_prefix("//") else {
         return Err(IriParseErrorKind::InvalidHostCharacter(authority.chars().next().unwrap_or_default()).into());
@@ -171,6 +179,9 @@ pub(crate) fn validate_authority_body(body: &str, is_iri: bool) -> Result<(), Ir
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the host is neither a valid IP-literal nor a valid reg-name.
 pub fn validate_host(host: &str, is_iri: bool) -> Result<(), IriParseError> {
     if let Some(ip) = host.strip_prefix('[') {
         let Some(end) = memchr::memchr(b']', ip.as_bytes()) else {
@@ -186,10 +197,16 @@ pub fn validate_host(host: &str, is_iri: bool) -> Result<(), IriParseError> {
     }
 }
 
+/// # Errors
+///
+/// Returns an error at the first character not allowed in userinfo, or on a malformed percent-encoding.
 pub fn validate_userinfo(s: &str, is_iri: bool) -> Result<(), IriParseError> {
     validate_code_point_or_echar(s, UNRESERVED_SUB_DELIMS_COLON, is_iri, false)
 }
 
+/// # Errors
+///
+/// Returns an error when the bracketed literal is neither an IPv6 address nor an `IPvFuture` form.
 pub fn validate_ip(ip: &str) -> Result<(), IriParseError> {
     if ip.starts_with(['v', 'V']) {
         validate_ip_v_future(ip)
@@ -198,6 +215,9 @@ pub fn validate_ip(ip: &str) -> Result<(), IriParseError> {
     }
 }
 
+/// # Errors
+///
+/// Returns an error when the `vHEX.` prefix is missing or malformed, or the remainder holds a character not allowed in an `IPvFuture` address.
 pub fn validate_ip_v_future(ip: &str) -> Result<(), IriParseError> {
     let Some(rest) = ip.strip_prefix(['v', 'V']) else {
         return Err(IriParseErrorKind::InvalidHostCharacter(ip.chars().next().unwrap_or_default()).into());
@@ -219,6 +239,9 @@ pub fn validate_ip_v_future(ip: &str) -> Result<(), IriParseError> {
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the port holds anything other than ASCII digits.
 pub fn validate_port(port: &str) -> Result<(), IriParseError> {
     if let Some(i) = port.as_bytes().iter().position(|c| !c.is_ascii_digit()) {
         return Err(IriParseErrorKind::InvalidPortCharacter(port[i..].chars().next().unwrap_or_default()).into());
@@ -226,22 +249,43 @@ pub fn validate_port(port: &str) -> Result<(), IriParseError> {
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error at the first character not allowed in a path, or on a malformed percent-encoding.
 pub fn validate_path(path: &str, is_iri: bool) -> Result<(), IriParseError> {
     validate_code_point_or_echar(path, PCHAR_OR_SLASH, is_iri, false)
 }
 
+/// # Errors
+///
+/// Returns an error at the first character not allowed in a path segment, or on a malformed percent-encoding.
 pub fn validate_segment(seg: &str, is_iri: bool) -> Result<(), IriParseError> {
     validate_code_point_or_echar(seg, PCHAR, is_iri, false)
 }
 
+/// # Errors
+///
+/// Returns an error at the first character not allowed in a query, or on a malformed percent-encoding.
 pub fn validate_query(query: &str, is_iri: bool) -> Result<(), IriParseError> {
     validate_code_point_or_echar(query, PCHAR_OR_SLASH_OR_QUESTION, is_iri, true)
 }
 
+/// # Errors
+///
+/// Returns an error at the first character not allowed in a fragment, or on a malformed percent-encoding.
 pub fn validate_fragment(fragment: &str, is_iri: bool) -> Result<(), IriParseError> {
     validate_code_point_or_echar(fragment, PCHAR_OR_SLASH_OR_QUESTION, is_iri, false)
 }
 
+/// # Errors
+///
+/// Returns an error at the first character the validator rejects, or on a percent-encoding that is not two hex digits.
+///
+/// # Panics
+///
+/// Cannot panic. `i` only ever advances by whole characters, so it is always a
+/// char boundary below `input.len()` where the non-ASCII branch slices; the
+/// `unwrap` there records that invariant rather than guarding a real case.
 #[inline]
 pub fn validate_code_point_or_echar(input: &str, ascii_validator: [bool; 256], is_iri: bool, allow_iprivate: bool) -> Result<(), IriParseError> {
     let bytes = input.as_bytes();
@@ -279,6 +323,9 @@ pub fn validate_code_point_or_echar(input: &str, ascii_validator: [bool; 256], i
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when any component delimited by `p` is invalid.
 pub fn validate_iri_ref(iri: &str, p: Positions, is_iri: bool) -> Result<(), IriParseError> {
     if p.scheme_end > 0 {
         validate_scheme(&iri[..p.scheme_end - 1])?;
@@ -296,6 +343,9 @@ pub fn validate_iri_ref(iri: &str, p: Positions, is_iri: bool) -> Result<(), Iri
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when any component delimited by `p` is invalid, or when the scheme is absent, which an absolute IRI requires.
 pub fn validate_iri(iri: &str, p: Positions, is_iri: bool) -> Result<(), IriParseError> {
     if p.scheme_end == 0 {
         return Err(IriParseErrorKind::NoScheme.into());
@@ -303,6 +353,9 @@ pub fn validate_iri(iri: &str, p: Positions, is_iri: bool) -> Result<(), IriPars
     validate_iri_ref(iri, p, is_iri)
 }
 
+/// # Errors
+///
+/// Returns an error when the path is not valid for the authority it was resolved against: a path with no authority may not begin with `//`, and a relative reference may not hold a `:` in its first segment.
 pub fn validate_resolved_path(iri: &str, p: Positions) -> Result<(), IriParseError> {
     if p.scheme_end == p.authority_end && iri[p.authority_end..].starts_with("//") {
         return Err(IriParseErrorKind::PathStartingWithTwoSlashes.into());

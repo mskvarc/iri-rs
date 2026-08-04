@@ -10,39 +10,57 @@ use crate::{
 };
 
 impl IriRefBuf {
+    /// # Errors
+    ///
+    /// Returns an error when the new scheme is not a valid scheme, or when removing it would leave a reference that cannot be reparsed. The value is left untouched.
     pub fn set_scheme(&mut self, scheme: Option<&str>) -> Result<(), IriParseError> {
         if let Some(s) = scheme {
             validate_scheme(s)?;
         }
-        rebuild(self, Edit::Scheme(scheme.map(str::to_string)), true)
+        rebuild(self, &Edit::Scheme(scheme.map(str::to_string)), true)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the new authority is not valid in that position. The value is left untouched.
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
         if let Some(a) = authority {
             validate_authority_body(a, true)?;
         }
-        rebuild(self, Edit::Authority(authority.map(str::to_string)), true)
+        rebuild(self, &Edit::Authority(authority.map(str::to_string)), true)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the new path is not valid in that position. The value is left untouched.
     pub fn set_path(&mut self, path: &str) -> Result<(), IriParseError> {
         validate_path(path, true)?;
-        rebuild(self, Edit::Path(path.to_string()), true)
+        rebuild(self, &Edit::Path(path.to_string()), true)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the new query is not valid in that position. The value is left untouched.
     pub fn set_query(&mut self, query: Option<&str>) -> Result<(), IriParseError> {
         if let Some(q) = query {
             validate_query(q, true)?;
         }
-        rebuild(self, Edit::Query(query.map(str::to_string)), true)
+        rebuild(self, &Edit::Query(query.map(str::to_string)), true)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the new fragment is not valid in that position. The value is left untouched.
     pub fn set_fragment(&mut self, fragment: Option<&str>) -> Result<(), IriParseError> {
         if let Some(f) = fragment {
             validate_fragment(f, true)?;
         }
-        rebuild(self, Edit::Fragment(fragment.map(str::to_string)), true)
+        rebuild(self, &Edit::Fragment(fragment.map(str::to_string)), true)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the reference and base do not recompose into a valid IRI reference.
     pub fn resolve<T: std::ops::Deref<Target = str>>(&mut self, base: &Iri<T>) -> Result<(), IriParseError> {
         let mut out = String::with_capacity(self.as_str().len() + base.as_str().len());
         let pos = resolve((base.as_str(), base.positions()), (self.as_str(), self.positions), &mut out);
@@ -51,6 +69,9 @@ impl IriRefBuf {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns the reference unchanged when it has no scheme, since an IRI is by definition absolute.
     pub fn try_into_iri(self) -> Result<IriBuf, InvalidIri<IriRefBuf>> {
         if self.is_absolute() {
             let p = self.positions;
@@ -60,6 +81,7 @@ impl IriRefBuf {
         }
     }
 
+    #[must_use]
     pub fn as_iri(&self) -> Option<Iri<&str>> {
         if self.is_absolute() {
             Some(Iri::from_raw_parts(self.as_str(), self.positions))
@@ -82,16 +104,22 @@ impl Default for UriRefBuf {
 }
 
 impl IriBuf {
+    /// # Errors
+    ///
+    /// Returns an error when the new scheme is not a valid scheme, or when removing it would leave a reference that cannot be reparsed. The value is left untouched.
     pub fn set_scheme(&mut self, scheme: &str) -> Result<(), IriParseError> {
         validate_scheme(scheme)?;
         let p = self.positions();
         let iri = std::mem::take(&mut self.0.iri);
         let mut r = IriRefBuf::from_raw_parts(iri, p);
-        rebuild(&mut r, Edit::Scheme(Some(scheme.to_string())), true)?;
+        rebuild(&mut r, &Edit::Scheme(Some(scheme.to_string())), true)?;
         *self = Iri::from_raw_parts(r.iri, r.positions);
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the new authority is not valid in that position. The value is left untouched.
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
         let p = self.positions();
         let iri = std::mem::take(&mut self.0.iri);
@@ -101,6 +129,9 @@ impl IriBuf {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the new path is not valid in that position. The value is left untouched.
     pub fn set_path(&mut self, path: &str) -> Result<(), IriParseError> {
         let p = self.positions();
         let iri = std::mem::take(&mut self.0.iri);
@@ -110,6 +141,9 @@ impl IriBuf {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the new query is not valid in that position. The value is left untouched.
     pub fn set_query(&mut self, query: Option<&str>) -> Result<(), IriParseError> {
         let p = self.positions();
         let iri = std::mem::take(&mut self.0.iri);
@@ -119,6 +153,9 @@ impl IriBuf {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the new fragment is not valid in that position. The value is left untouched.
     pub fn set_fragment(&mut self, fragment: Option<&str>) -> Result<(), IriParseError> {
         let p = self.positions();
         let iri = std::mem::take(&mut self.0.iri);
@@ -130,34 +167,52 @@ impl IriBuf {
 }
 
 impl UriRefBuf {
+    /// # Errors
+    ///
+    /// Returns an error when the new scheme is not a valid scheme, or when removing it would leave a reference that cannot be reparsed. The value is left untouched.
     pub fn set_scheme(&mut self, scheme: Option<&str>) -> Result<(), IriParseError> {
         if let Some(s) = scheme {
             validate_scheme(s)?;
         }
-        rebuild_uri(self, Edit::Scheme(scheme.map(str::to_string)))
+        rebuild_uri(self, &Edit::Scheme(scheme.map(str::to_string)))
     }
+    /// # Errors
+    ///
+    /// Returns an error when the new authority is not valid in that position. The value is left untouched.
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
         if let Some(a) = authority {
             validate_authority_body(a, false)?;
         }
-        rebuild_uri(self, Edit::Authority(authority.map(str::to_string)))
+        rebuild_uri(self, &Edit::Authority(authority.map(str::to_string)))
     }
+    /// # Errors
+    ///
+    /// Returns an error when the new path is not valid in that position. The value is left untouched.
     pub fn set_path(&mut self, path: &str) -> Result<(), IriParseError> {
         validate_path(path, false)?;
-        rebuild_uri(self, Edit::Path(path.to_string()))
+        rebuild_uri(self, &Edit::Path(path.to_string()))
     }
+    /// # Errors
+    ///
+    /// Returns an error when the new query is not valid in that position. The value is left untouched.
     pub fn set_query(&mut self, query: Option<&str>) -> Result<(), IriParseError> {
         if let Some(q) = query {
             validate_query(q, false)?;
         }
-        rebuild_uri(self, Edit::Query(query.map(str::to_string)))
+        rebuild_uri(self, &Edit::Query(query.map(str::to_string)))
     }
+    /// # Errors
+    ///
+    /// Returns an error when the new fragment is not valid in that position. The value is left untouched.
     pub fn set_fragment(&mut self, fragment: Option<&str>) -> Result<(), IriParseError> {
         if let Some(f) = fragment {
             validate_fragment(f, false)?;
         }
-        rebuild_uri(self, Edit::Fragment(fragment.map(str::to_string)))
+        rebuild_uri(self, &Edit::Fragment(fragment.map(str::to_string)))
     }
+    /// # Errors
+    ///
+    /// Returns an error when the reference and base do not recompose into a valid IRI reference.
     pub fn resolve<T: std::ops::Deref<Target = str>>(&mut self, base: &Uri<T>) -> Result<(), IriParseError> {
         let mut out = String::with_capacity(self.as_str().len() + base.as_str().len());
         let pos = resolve((base.as_str(), base.positions()), (self.as_str(), self.positions), &mut out);
@@ -166,6 +221,9 @@ impl UriRefBuf {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns the reference unchanged when it has no scheme, since a URI is by definition absolute.
     pub fn try_into_uri(self) -> Result<UriBuf, InvalidUri<UriRefBuf>> {
         if self.is_absolute() {
             let p = self.positions;
@@ -175,6 +233,7 @@ impl UriRefBuf {
         }
     }
 
+    #[must_use]
     pub fn as_uri(&self) -> Option<Uri<&str>> {
         if self.is_absolute() {
             Some(Uri::from_raw_parts(self.as_str(), self.positions))
@@ -185,6 +244,9 @@ impl UriRefBuf {
 }
 
 impl UriBuf {
+    /// # Errors
+    ///
+    /// Returns an error when the new scheme is not a valid scheme, or when removing it would leave a reference that cannot be reparsed. The value is left untouched.
     pub fn set_scheme(&mut self, scheme: &str) -> Result<(), IriParseError> {
         let p = self.positions();
         let uri = std::mem::take(&mut self.0.uri);
@@ -193,6 +255,9 @@ impl UriBuf {
         *self = Uri::from_raw_parts(r.uri, r.positions);
         Ok(())
     }
+    /// # Errors
+    ///
+    /// Returns an error when the new authority is not valid in that position. The value is left untouched.
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
         let p = self.positions();
         let uri = std::mem::take(&mut self.0.uri);
@@ -201,6 +266,9 @@ impl UriBuf {
         *self = Uri::from_raw_parts(r.uri, r.positions);
         Ok(())
     }
+    /// # Errors
+    ///
+    /// Returns an error when the new path is not valid in that position. The value is left untouched.
     pub fn set_path(&mut self, path: &str) -> Result<(), IriParseError> {
         let p = self.positions();
         let uri = std::mem::take(&mut self.0.uri);
@@ -209,6 +277,9 @@ impl UriBuf {
         *self = Uri::from_raw_parts(r.uri, r.positions);
         Ok(())
     }
+    /// # Errors
+    ///
+    /// Returns an error when the new query is not valid in that position. The value is left untouched.
     pub fn set_query(&mut self, query: Option<&str>) -> Result<(), IriParseError> {
         let p = self.positions();
         let uri = std::mem::take(&mut self.0.uri);
@@ -217,6 +288,9 @@ impl UriBuf {
         *self = Uri::from_raw_parts(r.uri, r.positions);
         Ok(())
     }
+    /// # Errors
+    ///
+    /// Returns an error when the new fragment is not valid in that position. The value is left untouched.
     pub fn set_fragment(&mut self, fragment: Option<&str>) -> Result<(), IriParseError> {
         let p = self.positions();
         let uri = std::mem::take(&mut self.0.uri);
@@ -235,12 +309,12 @@ enum Edit {
     Fragment(Option<String>),
 }
 
-fn rebuild(buf: &mut IriRefBuf, edit: Edit, is_iri: bool) -> Result<(), IriParseError> {
+fn rebuild(buf: &mut IriRefBuf, edit: &Edit, is_iri: bool) -> Result<(), IriParseError> {
     let out = {
         let s = buf.as_str();
         let (scheme, authority, path, query, fragment) = destructure(s, buf.positions);
         let mut out = String::with_capacity(s.len() + 8);
-        match &edit {
+        match edit {
             Edit::Scheme(new) => write_iri(&mut out, new.as_deref(), authority, path, query, fragment),
             Edit::Authority(new) => write_iri(&mut out, scheme, new.as_deref(), path, query, fragment),
             Edit::Path(new) => write_iri(&mut out, scheme, authority, new, query, fragment),
@@ -287,7 +361,7 @@ fn write_iri(out: &mut String, scheme: Option<&str>, authority: Option<&str>, pa
     }
 }
 
-fn rebuild_uri(buf: &mut UriRefBuf, edit: Edit) -> Result<(), IriParseError> {
+fn rebuild_uri(buf: &mut UriRefBuf, edit: &Edit) -> Result<(), IriParseError> {
     let mut tmp: IriRefBuf = IriRef::from_raw_parts(buf.as_str().to_string(), buf.positions);
     rebuild(&mut tmp, edit, false)?;
     let p = tmp.positions;

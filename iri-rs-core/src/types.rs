@@ -29,6 +29,9 @@ pub struct IriRef<T> {
 }
 
 impl<T: Deref<Target = str>> IriRef<T> {
+    /// # Errors
+    ///
+    /// Returns the input unchanged, wrapped in the error type, when it is not well formed under RFC 3986 (URIs) or RFC 3987 (IRIs).
     #[inline]
     pub fn parse(iri: T) -> Result<Self, InvalidIri<T>> {
         let positions = find_iri_ref_positions(&iri);
@@ -117,11 +120,17 @@ impl<T: Deref<Target = str>> IriRef<T> {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the reference and base do not recompose into a valid IRI reference. `output` may have been written to.
     pub fn resolve_into<U: Deref<Target = str>>(&self, base: &Iri<U>, output: &mut String) -> Result<(), IriParseError> {
         let positions = resolve((&base.0.iri, base.0.positions), (&self.iri, self.positions), output);
         validate_resolved_path(output, positions)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the reference and base do not recompose into a valid IRI reference.
     pub fn resolved<U: Deref<Target = str>>(&self, base: &Iri<U>) -> Result<IriRef<String>, IriParseError> {
         let mut out = String::with_capacity(base.0.iri.len() + self.iri.len());
         let positions = resolve((&base.0.iri, base.0.positions), (&self.iri, self.positions), &mut out);
@@ -174,7 +183,7 @@ impl FromStr for IriRef<String> {
 
 #[cfg(feature = "bytewise")]
 mod bytewise_impls {
-    use super::*;
+    use super::{Deref, Hash, Hasher, Iri, IriRef, Ordering};
     impl<T: Deref<Target = str>> PartialEq for IriRef<T> {
         fn eq(&self, other: &Self) -> bool {
             *self.iri == *other.iri
@@ -183,7 +192,7 @@ mod bytewise_impls {
     impl<T: Deref<Target = str>> Eq for IriRef<T> {}
     impl<T: Deref<Target = str>> Hash for IriRef<T> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            (*self.iri).hash(state)
+            (*self.iri).hash(state);
         }
     }
     impl<T: Deref<Target = str>> PartialOrd for IriRef<T> {
@@ -204,7 +213,7 @@ mod bytewise_impls {
     impl<T: Deref<Target = str>> Eq for Iri<T> {}
     impl<T: Deref<Target = str>> Hash for Iri<T> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            self.0.hash(state)
+            self.0.hash(state);
         }
     }
     impl<T: Deref<Target = str>> PartialOrd for Iri<T> {
@@ -221,7 +230,7 @@ mod bytewise_impls {
 
 #[cfg(not(feature = "bytewise"))]
 mod normalized_impls {
-    use super::*;
+    use super::{Deref, Hash, Hasher, Iri, IriRef, Ordering};
     use crate::normalize::{iri_cmp, iri_eq, normalized_hash};
 
     impl<T: Deref<Target = str>> PartialEq for IriRef<T> {
@@ -232,7 +241,7 @@ mod normalized_impls {
     impl<T: Deref<Target = str>> Eq for IriRef<T> {}
     impl<T: Deref<Target = str>> Hash for IriRef<T> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            normalized_hash(&self.iri, self.positions, state)
+            normalized_hash(&self.iri, self.positions, state);
         }
     }
     impl<T: Deref<Target = str>> PartialOrd for IriRef<T> {
@@ -253,7 +262,7 @@ mod normalized_impls {
     impl<T: Deref<Target = str>> Eq for Iri<T> {}
     impl<T: Deref<Target = str>> Hash for Iri<T> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            normalized_hash(&self.0.iri, self.0.positions, state)
+            normalized_hash(&self.0.iri, self.0.positions, state);
         }
     }
     impl<T: Deref<Target = str>> PartialOrd for Iri<T> {
@@ -325,6 +334,9 @@ impl<T: Deref<Target = str>> PartialEq<String> for IriRef<T> {
 pub struct Iri<T>(pub(crate) IriRef<T>);
 
 impl<T: Deref<Target = str>> Iri<T> {
+    /// # Errors
+    ///
+    /// Returns the input unchanged, wrapped in the error type, when it is not well formed under RFC 3986 (URIs) or RFC 3987 (IRIs).
     #[inline]
     pub fn parse(iri: T) -> Result<Self, InvalidIri<T>> {
         let positions = find_iri_positions(&iri);
@@ -358,6 +370,9 @@ impl<T: Deref<Target = str>> Iri<T> {
         self.0.positions
     }
 
+    /// # Panics
+    ///
+    /// Cannot panic for a value of this type: the scheme is part of its invariant, and the assertion only fires if that invariant was broken by unsafe construction.
     #[inline]
     pub fn scheme(&self) -> &str {
         self.0.scheme().expect("absolute IRI has scheme")
@@ -485,6 +500,9 @@ pub struct UriRef<T> {
 }
 
 impl<T: Deref<Target = str>> UriRef<T> {
+    /// # Errors
+    ///
+    /// Returns the input unchanged, wrapped in the error type, when it is not well formed under RFC 3986 (URIs) or RFC 3987 (IRIs).
     #[inline]
     pub fn parse(uri: T) -> Result<Self, InvalidUriRef<T>> {
         if !uri.is_ascii() {
@@ -564,11 +582,17 @@ impl<T: Deref<Target = str>> UriRef<T> {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the reference and base do not recompose into a valid IRI reference. `output` may have been written to.
     pub fn resolve_into<U: Deref<Target = str>>(&self, base: &Uri<U>, output: &mut String) -> Result<(), IriParseError> {
         let positions = resolve((&base.0.uri, base.0.positions), (&self.uri, self.positions), output);
         validate_resolved_path(output, positions)
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when the reference and base do not recompose into a valid IRI reference.
     pub fn resolved<U: Deref<Target = str>>(&self, base: &Uri<U>) -> Result<UriRef<String>, IriParseError> {
         let mut out = String::with_capacity(base.0.uri.len() + self.uri.len());
         let positions = resolve((&base.0.uri, base.0.positions), (&self.uri, self.positions), &mut out);
@@ -633,6 +657,9 @@ impl<'a> From<&'a UriRef<String>> for UriRef<&'a str> {
 pub struct Uri<T>(pub(crate) UriRef<T>);
 
 impl<T: Deref<Target = str>> Uri<T> {
+    /// # Errors
+    ///
+    /// Returns the input unchanged, wrapped in the error type, when it is not well formed under RFC 3986 (URIs) or RFC 3987 (IRIs).
     #[inline]
     pub fn parse(uri: T) -> Result<Self, InvalidUri<T>> {
         if !uri.is_ascii() {
@@ -667,6 +694,9 @@ impl<T: Deref<Target = str>> Uri<T> {
     pub fn positions(&self) -> Positions {
         self.0.positions
     }
+    /// # Panics
+    ///
+    /// Cannot panic for a value of this type: the scheme is part of its invariant, and the assertion only fires if that invariant was broken by unsafe construction.
     #[inline]
     pub fn scheme(&self) -> &str {
         self.0.scheme().expect("absolute URI has scheme")
@@ -757,7 +787,7 @@ impl<'a> From<Uri<&'a str>> for Uri<String> {
 
 #[cfg(feature = "bytewise")]
 mod uri_bytewise {
-    use super::*;
+    use super::{Deref, Hash, Hasher, Ordering, Uri, UriRef};
     impl<T: Deref<Target = str>> PartialEq for UriRef<T> {
         fn eq(&self, other: &Self) -> bool {
             *self.uri == *other.uri
@@ -766,7 +796,7 @@ mod uri_bytewise {
     impl<T: Deref<Target = str>> Eq for UriRef<T> {}
     impl<T: Deref<Target = str>> Hash for UriRef<T> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            (*self.uri).hash(state)
+            (*self.uri).hash(state);
         }
     }
     impl<T: Deref<Target = str>> PartialOrd for UriRef<T> {
@@ -787,7 +817,7 @@ mod uri_bytewise {
     impl<T: Deref<Target = str>> Eq for Uri<T> {}
     impl<T: Deref<Target = str>> Hash for Uri<T> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            self.0.hash(state)
+            self.0.hash(state);
         }
     }
     impl<T: Deref<Target = str>> PartialOrd for Uri<T> {
@@ -804,7 +834,7 @@ mod uri_bytewise {
 
 #[cfg(not(feature = "bytewise"))]
 mod uri_norm {
-    use super::*;
+    use super::{Deref, Hash, Hasher, Ordering, Uri, UriRef};
     use crate::normalize::{iri_cmp, iri_eq, normalized_hash};
     impl<T: Deref<Target = str>> PartialEq for UriRef<T> {
         fn eq(&self, other: &Self) -> bool {
@@ -814,7 +844,7 @@ mod uri_norm {
     impl<T: Deref<Target = str>> Eq for UriRef<T> {}
     impl<T: Deref<Target = str>> Hash for UriRef<T> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            normalized_hash(&self.uri, self.positions, state)
+            normalized_hash(&self.uri, self.positions, state);
         }
     }
     impl<T: Deref<Target = str>> PartialOrd for UriRef<T> {
@@ -835,7 +865,7 @@ mod uri_norm {
     impl<T: Deref<Target = str>> Eq for Uri<T> {}
     impl<T: Deref<Target = str>> Hash for Uri<T> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            normalized_hash(&self.0.uri, self.0.positions, state)
+            normalized_hash(&self.0.uri, self.0.positions, state);
         }
     }
     impl<T: Deref<Target = str>> PartialOrd for Uri<T> {
@@ -887,9 +917,15 @@ pub type UriBuf = Uri<String>;
 pub type UriRefBuf = UriRef<String>;
 
 impl Iri<String> {
+    /// # Errors
+    ///
+    /// Returns the input unchanged, wrapped in the error type, when it is not well formed under RFC 3986 (URIs) or RFC 3987 (IRIs).
     pub fn new(s: impl Into<String>) -> Result<Self, InvalidIri<String>> {
         Self::parse(s.into())
     }
+    /// # Errors
+    ///
+    /// Returns the buffer unchanged when its bytes are not valid UTF-8, or are not a well-formed IRI.
     pub fn from_vec(buffer: Vec<u8>) -> Result<Self, InvalidIri<Vec<u8>>> {
         match simdutf8::basic::from_utf8(&buffer) {
             Ok(_) => {
@@ -911,6 +947,7 @@ impl Iri<String> {
     /// strict Rust sense (no UB in this crate), but the `unsafe` marker is
     /// retained to make the precondition impossible to ignore.
     #[inline]
+    #[must_use]
     pub unsafe fn new_unchecked(value: String) -> Self {
         Self::parse_unchecked(value)
     }
@@ -925,14 +962,21 @@ impl<'a> Iri<&'a str> {
     /// Passing a slice that is not a valid IRI may cause downstream
     /// consumers to misbehave.
     #[inline]
+    #[must_use]
     pub unsafe fn new_unchecked(value: &'a str) -> Self {
         Self::parse_unchecked(value)
     }
 }
 impl IriRef<String> {
+    /// # Errors
+    ///
+    /// Returns the input unchanged, wrapped in the error type, when it is not well formed under RFC 3986 (URIs) or RFC 3987 (IRIs).
     pub fn new(s: impl Into<String>) -> Result<Self, InvalidIri<String>> {
         Self::parse(s.into())
     }
+    /// # Errors
+    ///
+    /// Returns the buffer unchanged when its bytes are not valid UTF-8, or are not a well-formed IRI.
     pub fn from_vec(buffer: Vec<u8>) -> Result<Self, InvalidIri<Vec<u8>>> {
         match simdutf8::basic::from_utf8(&buffer) {
             Ok(_) => {
@@ -944,6 +988,9 @@ impl IriRef<String> {
     }
 }
 impl Uri<String> {
+    /// # Errors
+    ///
+    /// Returns the input unchanged, wrapped in the error type, when it is not well formed under RFC 3986 (URIs) or RFC 3987 (IRIs).
     pub fn new(s: impl Into<Vec<u8>>) -> Result<Self, InvalidUri<Vec<u8>>> {
         let bytes = s.into();
         if !bytes.is_ascii() {
@@ -954,6 +1001,9 @@ impl Uri<String> {
     }
 }
 impl UriRef<String> {
+    /// # Errors
+    ///
+    /// Returns the input unchanged, wrapped in the error type, when it is not well formed under RFC 3986 (URIs) or RFC 3987 (IRIs).
     pub fn new(s: impl Into<Vec<u8>>) -> Result<Self, InvalidUriRef<Vec<u8>>> {
         let bytes = s.into();
         if !bytes.is_ascii() {
@@ -966,7 +1016,7 @@ impl UriRef<String> {
 
 #[cfg(feature = "serde")]
 mod serde_impls {
-    use super::*;
+    use super::{Deref, Iri, IriRef, TryFrom, Uri, UriRef};
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     impl<T: Deref<Target = str> + Serialize> Serialize for IriRef<T> {
@@ -977,7 +1027,7 @@ mod serde_impls {
     impl<'de, T: Deref<Target = str> + Deserialize<'de>> Deserialize<'de> for IriRef<T> {
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
             use serde::de::Error;
-            Self::parse(T::deserialize(d)?).map_err(|e| Error::custom(format!("{:?}", e.0.deref())))
+            Self::parse(T::deserialize(d)?).map_err(|e| Error::custom(format!("{:?}", &*e.0)))
         }
     }
     impl<T: Deref<Target = str> + Serialize> Serialize for Iri<T> {
@@ -989,7 +1039,7 @@ mod serde_impls {
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
             use serde::de::Error;
             let r = IriRef::<T>::deserialize(d)?;
-            Self::try_from(r).map_err(|e| Error::custom(format!("{:?}", e.0.deref())))
+            Self::try_from(r).map_err(|e| Error::custom(format!("{:?}", &*e.0)))
         }
     }
     impl<T: Deref<Target = str> + Serialize> Serialize for UriRef<T> {
@@ -1000,7 +1050,7 @@ mod serde_impls {
     impl<'de, T: Deref<Target = str> + Deserialize<'de>> Deserialize<'de> for UriRef<T> {
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
             use serde::de::Error;
-            Self::parse(T::deserialize(d)?).map_err(|e| Error::custom(format!("{:?}", e.0.deref())))
+            Self::parse(T::deserialize(d)?).map_err(|e| Error::custom(format!("{:?}", &*e.0)))
         }
     }
     impl<T: Deref<Target = str> + Serialize> Serialize for Uri<T> {
@@ -1012,7 +1062,7 @@ mod serde_impls {
         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
             use serde::de::Error;
             let r = UriRef::<T>::deserialize(d)?;
-            Self::try_from(r).map_err(|e| Error::custom(format!("{:?}", e.0.deref())))
+            Self::try_from(r).map_err(|e| Error::custom(format!("{:?}", &*e.0)))
         }
     }
 }

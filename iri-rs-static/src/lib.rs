@@ -120,5 +120,5 @@ pub fn iri_ref(tokens: TokenStream) -> TokenStream {
 }
 
 fn produce_error(msg: &str) -> TokenStream {
-    format!("compile_error!(\"{}\")", msg).parse().unwrap()
+    format!("compile_error!(\"{msg}\")").parse().unwrap()
 }

@@ -38,10 +38,10 @@ fn bench_component_extract(c: &mut Criterion) {
             b.iter(|| {
                 let iri = black_box(*iri);
                 let s = iri.scheme().len();
-                let a = iri.authority().map(str::len).unwrap_or(0);
+                let a = iri.authority().map_or(0, str::len);
                 let p = iri.path().len();
-                let q = iri.query().map(str::len).unwrap_or(0);
-                let f = iri.fragment().map(str::len).unwrap_or(0);
+                let q = iri.query().map_or(0, str::len);
+                let f = iri.fragment().map_or(0, str::len);
                 s + a + p + q + f
             });
         });
@@ -54,10 +54,10 @@ fn bench_component_extract(c: &mut Criterion) {
             b.iter(|| {
                 let uri = black_box(*uri);
                 let s = uri.scheme().len();
-                let a = uri.authority().map(str::len).unwrap_or(0);
+                let a = uri.authority().map_or(0, str::len);
                 let p = uri.path().len();
-                let q = uri.query().map(str::len).unwrap_or(0);
-                let f = uri.fragment().map(str::len).unwrap_or(0);
+                let q = uri.query().map_or(0, str::len);
+                let f = uri.fragment().map_or(0, str::len);
                 s + a + p + q + f
             });
         });

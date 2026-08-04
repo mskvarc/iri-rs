@@ -46,3 +46,6 @@ harness = false
 [[bench]]
 name = "resolve"
 harness = false
+
+[lints]
+workspace = true

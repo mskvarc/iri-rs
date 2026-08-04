@@ -6,6 +6,7 @@ pub struct IriParseError {
 }
 
 impl IriParseError {
+    #[must_use]
     pub fn kind(&self) -> &IriParseErrorKind {
         &self.kind
     }

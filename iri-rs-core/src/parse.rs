@@ -27,6 +27,7 @@ impl Positions {
 
 /// Finds positions assuming the input is a full IRI (absolute or relative, scheme allowed).
 #[inline]
+#[must_use]
 pub fn find_iri_positions(iri: &str) -> Positions {
     let iri = iri.as_bytes();
     let scheme_end = memchr(b':', iri).map_or(0, |l| l + 1);
@@ -34,6 +35,7 @@ pub fn find_iri_positions(iri: &str) -> Positions {
 }
 
 #[inline]
+#[must_use]
 pub fn find_iri_positions_knowing_scheme_end(iri: &[u8], scheme_end: usize) -> Positions {
     let path_end = memchr2(b'?', b'#', &iri[scheme_end..]).map_or(iri.len(), |l| scheme_end + l);
     let query_end = memchr(b'#', &iri[path_end..]).map_or(iri.len(), |l| path_end + l);
@@ -51,6 +53,7 @@ pub fn find_iri_positions_knowing_scheme_end(iri: &[u8], scheme_end: usize) -> P
 }
 
 /// Finds positions for an IRI reference (may lack scheme, start with `/`, `?`, `#`, or be empty).
+#[must_use]
 pub fn find_iri_ref_positions(iri: &str) -> Positions {
     let iri = iri.as_bytes();
     match iri.first().copied() {

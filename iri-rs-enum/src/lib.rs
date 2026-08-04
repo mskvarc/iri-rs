@@ -107,12 +107,12 @@ fn expand_iri(value: &str, prefixes: &HashMap<String, IriBuf>) -> Result<IriBuf,
             if !suffix.starts_with("//") {
                 if let Some(base) = prefixes.get(prefix) {
                     let concat = format!("{}{}", base.as_str(), suffix);
-                    return IriBuf::new(concat.clone()).map_err(|_| format!("invalid IRI `{}`", concat));
+                    return IriBuf::new(concat.clone()).map_err(|_| format!("invalid IRI `{concat}`"));
                 }
             }
         }
     }
-    IriBuf::new(value.to_owned()).map_err(|_| format!("invalid IRI `{}`", value))
+    IriBuf::new(value.to_owned()).map_err(|_| format!("invalid IRI `{value}`"))
 }
 
 fn positions_tokens(core: &TokenStream2, p: Positions) -> TokenStream2 {
@@ -139,6 +139,12 @@ fn iri_const_tokens(core: &TokenStream2, iri: &IriBuf) -> TokenStream2 {
 }
 
 #[proc_macro_derive(IriEnum, attributes(iri_prefix, iri))]
+// `too_many_lines`: one line over the threshold, and the body is a single
+// straight-line lowering of the input enum; splitting it would only move code.
+// `missing_panics_doc`: the two `unwrap`s here sit behind guards that prove them
+// (`len() == 1` before taking the single field), and a "# Panics" section on a
+// derive's rustdoc documents an entry point nobody calls directly.
+#[allow(clippy::too_many_lines, clippy::missing_panics_doc)]
 pub fn iri_enum_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let core = core_path();

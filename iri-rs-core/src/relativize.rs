@@ -147,7 +147,7 @@ fn write_relative_path(base_path: &str, tgt_path: &str, output: &mut String) {
         }
     }
 
-    let up = base_rest.as_bytes().iter().filter(|&&b| b == b'/').count();
+    let up = memchr::memchr_iter(b'/', base_rest.as_bytes()).count();
     if up == 0 && tgt_rest.is_empty() {
         if !base_rest.is_empty() {
             output.push_str("./");

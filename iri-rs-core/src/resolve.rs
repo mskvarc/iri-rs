@@ -51,7 +51,7 @@ pub fn resolve(base: (&str, Positions), relative: (&str, Positions), output_buff
             output_buffer.reserve_exact(base_p.authority_end + last_slash + (rel_iri.len() - rel_p.authority_end) + 1);
             output_buffer.push_str(&base_iri[..base_p.authority_end]);
             if base_p.authority_end > 0 {
-                write_path_without_dot_segments_to(&base_iri[base_p.authority_end..][..last_slash + 1], output_buffer, base_p.authority_end, false);
+                write_path_without_dot_segments_to(&base_iri[base_p.authority_end..][..=last_slash], output_buffer, base_p.authority_end, false);
                 let with_prefix_slash = if output_buffer.ends_with('/') {
                     output_buffer.pop();
                     true
@@ -65,7 +65,7 @@ pub fn resolve(base: (&str, Positions), relative: (&str, Positions), output_buff
                     with_prefix_slash,
                 );
             } else {
-                output_buffer.push_str(&base_iri[base_p.authority_end..][..last_slash + 1]);
+                output_buffer.push_str(&base_iri[base_p.authority_end..][..=last_slash]);
                 output_buffer.push_str(&rel_iri[rel_p.authority_end..rel_p.path_end]);
             }
         } else {

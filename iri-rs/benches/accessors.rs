@@ -18,10 +18,10 @@ fn bench(c: &mut Criterion) {
             b.iter(|| {
                 let iri = black_box(*iri);
                 iri.scheme().len()
-                    + iri.authority().map(|x| x.len()).unwrap_or(0)
+                    + iri.authority().map_or(0, str::len)
                     + iri.path().len()
-                    + iri.query().map(|x| x.len()).unwrap_or(0)
-                    + iri.fragment().map(|x| x.len()).unwrap_or(0)
+                    + iri.query().map_or(0, str::len)
+                    + iri.fragment().map_or(0, str::len)
             });
         });
     }
