@@ -313,16 +313,25 @@ impl From<IriRef<String>> for IriRef<Cow<'_, str>> {
     }
 }
 
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<str> for IriRef<T> {
     fn eq(&self, other: &str) -> bool {
         &*self.iri == other
     }
 }
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<&str> for IriRef<T> {
     fn eq(&self, other: &&str) -> bool {
         &*self.iri == *other
     }
 }
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<String> for IriRef<T> {
     fn eq(&self, other: &String) -> bool {
         &*self.iri == other.as_str()
@@ -478,16 +487,25 @@ impl<'a> From<&'a Iri<String>> for Iri<&'a str> {
     }
 }
 
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<str> for Iri<T> {
     fn eq(&self, other: &str) -> bool {
         self.0.eq(other)
     }
 }
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<&str> for Iri<T> {
     fn eq(&self, other: &&str) -> bool {
         self.0.eq(other)
     }
 }
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<String> for Iri<T> {
     fn eq(&self, other: &String) -> bool {
         self.0.eq(other)
@@ -888,31 +906,49 @@ mod uri_norm {
     }
 }
 
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<str> for UriRef<T> {
     fn eq(&self, other: &str) -> bool {
         &*self.uri == other
     }
 }
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<&str> for UriRef<T> {
     fn eq(&self, other: &&str) -> bool {
         &*self.uri == *other
     }
 }
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<String> for UriRef<T> {
     fn eq(&self, other: &String) -> bool {
         &*self.uri == other.as_str()
     }
 }
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<str> for Uri<T> {
     fn eq(&self, other: &str) -> bool {
         self.0.eq(other)
     }
 }
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<&str> for Uri<T> {
     fn eq(&self, other: &&str) -> bool {
         self.0.eq(other)
     }
 }
+/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
+/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
+/// string, or compare `normalized()` with it, for equivalence.
 impl<T: Deref<Target = str>> PartialEq<String> for Uri<T> {
     fn eq(&self, other: &String) -> bool {
         self.0.eq(other)

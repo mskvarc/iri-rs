@@ -355,7 +355,7 @@ pub fn validate_iri(iri: &str, p: Positions, is_iri: bool) -> Result<(), IriPars
 
 /// # Errors
 ///
-/// Returns an error when the path is not valid for the authority it was resolved against: a path with no authority may not begin with `//`, and a relative reference may not hold a `:` in its first segment.
+/// Returns an error when the path is not valid for the authority it was resolved against: a path with no authority may not begin with `//`.
 pub fn validate_resolved_path(iri: &str, p: Positions) -> Result<(), IriParseError> {
     if p.scheme_end == p.authority_end && iri[p.authority_end..].starts_with("//") {
         return Err(IriParseErrorKind::PathStartingWithTwoSlashes.into());

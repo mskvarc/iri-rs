@@ -396,6 +396,47 @@ normalized_methods!(Iri, iri.0);
 normalized_methods!(UriRef, uri);
 normalized_methods!(Uri, uri.0);
 
+impl<T: Deref<Target = str>> Iri<T> {
+    /// The normal form `==` compares, borrowed when `self` is visibly in it,
+    /// or `None` under `bytewise`, where `==` compares `as_str()` itself.
+    ///
+    /// For `iri-rs-enum`, whose derive matches `as_str()` against the declared
+    /// spellings of its variants, and on a miss matches this against their
+    /// normal forms.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn __eq_form(&self) -> Option<Cow<'_, str>> {
+        let (s, p) = (&*self.0.iri, self.0.positions);
+        if cfg!(feature = "bytewise") {
+            None
+        } else if is_plainly_normal(s, p) {
+            Some(Cow::Borrowed(s))
+        } else {
+            Some(Cow::Owned(normalized_string(s, p, false)))
+        }
+    }
+}
+
+/// Whether `s` is visibly its own normal form: no escapes, no ASCII
+/// uppercase in the scheme or host, no dot segments. Never says so of a string
+/// that normalization changes; it may miss some that it leaves alone.
+fn is_plainly_normal(s: &str, p: Positions) -> bool {
+    if memchr::memchr(b'%', s.as_bytes()).is_some() {
+        return false;
+    }
+    let parts = Parts::of(s, p);
+    let has_upper = |t: &str| t.bytes().any(|b| b.is_ascii_uppercase());
+    if parts.scheme.is_some_and(has_upper) {
+        return false;
+    }
+    if parts.authority.is_some_and(|a| has_upper(split_authority(a).1)) {
+        return false;
+    }
+    // A relative-path reference can also gain a `./`, but only through dot
+    // segments, which this already rules out.
+    path_is_normalized(parts.path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -823,6 +864,33 @@ mod tests {
         let mut hasher = H::default();
         normalized_hash(s, find_iri_ref_positions(s), &mut hasher);
         hasher.finish()
+    }
+
+    /// `is_plainly_normal` may only vouch for strings normalization leaves
+    /// alone, or the enum derive would miss variants.
+    #[test]
+    fn plainly_normal_is_never_optimistic() {
+        for &s in CORPUS {
+            let p = find_iri_ref_positions(s);
+            if is_plainly_normal(s, p) {
+                assert_eq!(normalized(s), s, "`{s}` was vouched for");
+            }
+        }
+        for s in ["http://a/b", "foo:a:b", "http://u:P@a/B?Q#F"] {
+            assert!(is_plainly_normal(s, find_iri_ref_positions(s)), "`{s}`");
+        }
+    }
+
+    #[test]
+    fn eq_form_is_the_normal_form() {
+        let form = |s: &str| IriBuf::new(s).unwrap().__eq_form().map(Cow::into_owned);
+        if cfg!(feature = "bytewise") {
+            assert_eq!(form("HTTPS://A/b"), None);
+        } else {
+            assert!(matches!(IriBuf::new("http://a/b").unwrap().__eq_form(), Some(Cow::Borrowed("http://a/b"))));
+            assert_eq!(form("http://a/%2F").as_deref(), Some("http://a/%2F"));
+            assert_eq!(form("HTTPS://A/%7e/./b").as_deref(), Some("https://a/~/b"));
+        }
     }
 
     /// Mixes every `write` call separately, as `FxHasher` does, so chunking

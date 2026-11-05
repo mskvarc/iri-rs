@@ -1,7 +1,7 @@
 //! This crates provides an implementation of
 //! [Uniform Resource Identifiers (URIs, aka URLs)][uri] and [Internationalized
-//! Resource Identifiers (IRIs)][iri] following [RFC 3987][uri-rfc] and [RFC
-//! 3986][iri-rfc] defined by the [Internet Engineering Task Force
+//! Resource Identifiers (IRIs)][iri] following [RFC 3986][uri-rfc] and [RFC
+//! 3987][iri-rfc] defined by the [Internet Engineering Task Force
 //! (IETF)][ietf] to uniquely identify objects across the web. IRIs are a
 //! superclass of URIs accepting international characters defined in the
 //! [Unicode][unicode] table.
@@ -34,10 +34,13 @@
 //!   - path normalization;
 //!   - comparison modulo normalization;
 //!   - URI/IRI-reference resolution;
-//!   - static URI/IRI parsing using the `uri`/`iri` macros (provided by
-//!     enabling the `macros` feature).
-//!   - `serde` support (by enabling the `serde` feature).
-//!   - data URL support (by enabling the `data` feature).
+//!   - static URI/IRI parsing using the `iri!`, `uri!`, `iri_ref!` and
+//!     `uri_ref!` macros (by enabling the `static` feature);
+//!   - `#[derive(IriEnum)]` for vocabulary enums (by enabling the `enum`
+//!     feature);
+//!   - `serde` support (by enabling the `serde` feature);
+//!   - byte-wise comparison, hashing and ordering (by enabling the `bytewise`
+//!     feature).
 //!
 //! ## Basic usage
 //!
