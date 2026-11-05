@@ -1,12 +1,33 @@
-//! RFC 3986/3987 §6.2.2 syntax-based normalization — streaming comparators + hash.
+//! RFC 3986/3987 §6.2.2 syntax-based normalization: the normal form, and the
+//! streaming comparators and hash that agree with it.
+//!
+//! The normal form is defined once, by `write_normalized`. `normalized()`
+//! writes it into a string and [`normalized_hash`] feeds it to the hasher, so
+//! the two cannot drift. [`iri_eq`] compares the same canonical components
+//! without building the whole form, and the tests hold it to `normalized()`.
+//!
+//! Per component:
+//! * scheme: ASCII-lowercased;
+//! * user info: percent-normalized, case kept;
+//! * host: percent-normalized, then ASCII-lowercased outside the remaining
+//!   `%XX` triplets;
+//! * port: kept as written;
+//! * path: percent-normalized, then dot segments removed by
+//!   [`normalize_path`];
+//! * query, fragment: percent-normalized, case and order kept.
+//!
+//! Percent-normalization decodes escaped unreserved characters (letters,
+//! digits, `-` `.` `_` `~`) and uppercases the hex digits of every other
+//! escape. It runs before dot-segment removal, so `%2E%2E` is a `..` segment.
 
-use std::{cmp::Ordering, hash::Hasher};
+use std::{borrow::Cow, cmp::Ordering, hash::Hasher, ops::Deref};
 
-use pct::PctStr;
+use pct::rfc3986::{Chunk, chunks};
 
 use crate::{
-    components::{normalize_path, path_is_normalized},
+    components::{normalize_path, path_guard, path_is_normalized, split_authority},
     parse::Positions,
+    types::{Iri, IriRef, Uri, UriRef},
 };
 
 pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
@@ -86,52 +107,21 @@ pub fn iri_cmp(a: &str, pa: Positions, b: &str, pb: Positions) -> Ordering {
 
 #[must_use]
 pub fn authority_eq(a: &str, b: &str) -> bool {
-    let (ui_a, rest_a) = split_user_info(a);
-    let (ui_b, rest_b) = split_user_info(b);
-    if ui_a != ui_b {
-        return false;
-    }
-    let (host_a, port_a) = split_host_port(rest_a);
-    let (host_b, port_b) = split_host_port(rest_b);
-    if !host_a.eq_ignore_ascii_case(host_b) {
-        return false;
-    }
-    port_a == port_b
+    let (ui_a, host_a, port_a) = split_authority(a);
+    let (ui_b, host_b, port_b) = split_authority(b);
+    opt_pct_unreserved_eq(ui_a, ui_b) && host_eq(host_a, host_b) && port_a == port_b
 }
 
-fn split_user_info(s: &str) -> (Option<&str>, &str) {
-    match memchr::memchr(b'@', s.as_bytes()) {
-        Some(i) => (Some(&s[..i]), &s[i + 1..]),
-        None => (None, s),
+fn host_eq(a: &str, b: &str) -> bool {
+    if memchr::memchr(b'%', a.as_bytes()).is_none() && memchr::memchr(b'%', b.as_bytes()).is_none() {
+        return a.eq_ignore_ascii_case(b);
     }
-}
-
-fn split_host_port(s: &str) -> (&str, Option<&str>) {
-    if let Some(rest) = s.strip_prefix('[') {
-        if let Some(end) = memchr::memchr(b']', rest.as_bytes()) {
-            let host_end = end + 2;
-            if host_end <= s.len() {
-                let host = &s[..host_end];
-                let tail = &s[host_end..];
-                return if let Some(p) = tail.strip_prefix(':') {
-                    (host, Some(p))
-                } else {
-                    (host, None)
-                };
-            }
-        }
-    }
-    match memchr::memchr(b':', s.as_bytes()) {
-        Some(i) => (&s[..i], Some(&s[i + 1..])),
-        None => (s, None),
-    }
+    canonical(a, true) == canonical(b, true)
 }
 
 #[must_use]
 pub fn path_eq_normalized(a: &str, b: &str) -> bool {
-    let an = normalize_path(a);
-    let bn = normalize_path(b);
-    pct_unreserved_eq(&an, &bn)
+    a == b || canonical_path(a) == canonical_path(b)
 }
 
 fn opt_pct_unreserved_eq(a: Option<&str>, b: Option<&str>) -> bool {
@@ -144,72 +134,244 @@ fn opt_pct_unreserved_eq(a: Option<&str>, b: Option<&str>) -> bool {
 
 #[must_use]
 pub fn pct_unreserved_eq(a: &str, b: &str) -> bool {
-    if memchr::memchr(b'%', a.as_bytes()).is_none() && memchr::memchr(b'%', b.as_bytes()).is_none() {
-        return a.as_bytes() == b.as_bytes();
-    }
-    // SAFETY: callers pass validated substrings of an already-parsed IRI, so
-    // any `%` is followed by two hex digits.
-    let pa = unsafe { PctStr::new_unchecked(a) };
-    let pb = unsafe { PctStr::new_unchecked(b) };
-    pa.eq_rfc3986(pb)
+    a == b || canonical(a, false) == canonical(b, false)
 }
 
+/// Hashes the normal form, so IRIs that compare equal hash alike.
 pub fn normalized_hash<H: Hasher>(iri: &str, p: Positions, state: &mut H) {
-    if p.scheme_end > 0 {
-        hash_lower_ascii(&iri.as_bytes()[..p.scheme_end - 1], state);
-        state.write(b":");
+    let mut sink = HashSink {
+        state,
+        buf: [0; HASH_CHUNK],
+        len: 0,
+    };
+    write_normalized(iri, p, false, &mut sink);
+    sink.finish();
+}
+
+/// Where [`write_normalized`] puts the normal form.
+trait Sink {
+    fn put(&mut self, s: &str);
+    /// Puts `s` with its ASCII letters lowercased.
+    fn put_lower(&mut self, s: &str);
+    /// Puts one ASCII byte.
+    fn put_ascii(&mut self, byte: u8);
+}
+
+impl Sink for String {
+    fn put(&mut self, s: &str) {
+        self.push_str(s);
     }
-    if p.authority_end > p.scheme_end {
-        state.write(b"//");
-        let auth = &iri[p.scheme_end + 2..p.authority_end];
-        let (ui, rest) = split_user_info(auth);
-        if let Some(ui) = ui {
-            state.write(ui.as_bytes());
-            state.write(b"@");
-        }
-        let (host, port) = split_host_port(rest);
-        hash_lower_ascii(host.as_bytes(), state);
-        if let Some(port) = port {
-            state.write(b":");
-            state.write(port.as_bytes());
+
+    fn put_lower(&mut self, s: &str) {
+        let start = self.len();
+        self.push_str(s);
+        self[start..].make_ascii_lowercase();
+    }
+
+    fn put_ascii(&mut self, byte: u8) {
+        debug_assert!(byte.is_ascii());
+        self.push(char::from(byte));
+    }
+}
+
+const HASH_CHUNK: usize = 128;
+
+/// Feeds a hasher the normal form in fixed-size chunks.
+///
+/// `Hasher::write` is not required to be streaming: hashers such as `FxHasher`
+/// mix each call separately, so `write(b"a~")` and `write(b"a"); write(b"~")`
+/// differ. Equal IRIs must therefore reach the hasher as identical calls. The
+/// chunk boundaries depend only on the position in the normal form, never on
+/// how the input spelled it.
+struct HashSink<'a, H> {
+    state: &'a mut H,
+    buf: [u8; HASH_CHUNK],
+    len: usize,
+}
+
+impl<H: Hasher> HashSink<'_, H> {
+    fn put_bytes(&mut self, mut bytes: &[u8], lower: bool) {
+        while !bytes.is_empty() {
+            let n = (HASH_CHUNK - self.len).min(bytes.len());
+            let dst = &mut self.buf[self.len..self.len + n];
+            dst.copy_from_slice(&bytes[..n]);
+            if lower {
+                dst.make_ascii_lowercase();
+            }
+            self.len += n;
+            bytes = &bytes[n..];
+            if self.len == HASH_CHUNK {
+                self.state.write(&self.buf);
+                self.len = 0;
+            }
         }
     }
-    let path = &iri[p.authority_end..p.path_end];
-    if path_is_normalized(path) {
-        hash_pct_unreserved(path, state);
+
+    fn finish(self) {
+        if self.len > 0 {
+            self.state.write(&self.buf[..self.len]);
+        }
+    }
+}
+
+impl<H: Hasher> Sink for HashSink<'_, H> {
+    fn put(&mut self, s: &str) {
+        self.put_bytes(s.as_bytes(), false);
+    }
+
+    fn put_lower(&mut self, s: &str) {
+        self.put_bytes(s.as_bytes(), true);
+    }
+
+    fn put_ascii(&mut self, byte: u8) {
+        self.buf[self.len] = byte;
+        self.len += 1;
+        if self.len == HASH_CHUNK {
+            self.state.write(&self.buf);
+            self.len = 0;
+        }
+    }
+}
+
+/// Writes the normal form of the IRI reference `iri` (see the module docs).
+///
+/// With `scheme_defaults`, the RFC 3986 §6.2.3 scheme-based steps for `http`
+/// and `https` are applied too: the default port is dropped and an empty path
+/// under an authority becomes `/`. Equality and hashing never use them.
+fn write_normalized<S: Sink>(iri: &str, p: Positions, scheme_defaults: bool, sink: &mut S) {
+    let scheme = (p.scheme_end > 0).then(|| &iri[..p.scheme_end - 1]);
+    if let Some(scheme) = scheme {
+        sink.put_lower(scheme);
+        sink.put(":");
+    }
+    let default_port = match scheme {
+        Some(s) if scheme_defaults && s.eq_ignore_ascii_case("http") => Some("80"),
+        Some(s) if scheme_defaults && s.eq_ignore_ascii_case("https") => Some("443"),
+        _ => None,
+    };
+    let has_authority = p.authority_end > p.scheme_end;
+    if has_authority {
+        sink.put("//");
+        let (user_info, host, port) = split_authority(&iri[p.scheme_end + 2..p.authority_end]);
+        if let Some(user_info) = user_info {
+            put_pct_normalized(sink, user_info, false);
+            sink.put("@");
+        }
+        put_pct_normalized(sink, host, true);
+        if let Some(port) = port.filter(|&port| Some(port) != default_port) {
+            sink.put(":");
+            sink.put(port);
+        }
+    }
+    let path = canonical_path(&iri[p.authority_end..p.path_end]);
+    if path.is_empty() && has_authority && default_port.is_some() {
+        sink.put("/");
     } else {
-        let np = normalize_path(path);
-        hash_pct_unreserved(&np, state);
+        sink.put(path_guard(scheme.is_some(), has_authority, &path));
+        sink.put(&path);
     }
     if p.query_end > p.path_end {
-        state.write(b"?");
-        hash_pct_unreserved(&iri[p.path_end + 1..p.query_end], state);
+        sink.put("?");
+        put_pct_normalized(sink, &iri[p.path_end + 1..p.query_end], false);
     }
     if iri.len() > p.query_end {
-        state.write(b"#");
-        hash_pct_unreserved(&iri[p.query_end + 1..], state);
+        sink.put("#");
+        put_pct_normalized(sink, &iri[p.query_end + 1..], false);
     }
 }
 
-fn hash_lower_ascii<H: Hasher>(bytes: &[u8], state: &mut H) {
-    let mut buf = [0u8; 128];
-    for chunk in bytes.chunks(128) {
-        let n = chunk.len();
-        buf[..n].copy_from_slice(chunk);
-        buf[..n].make_ascii_lowercase();
-        state.write(&buf[..n]);
+/// Puts `s` percent-normalized. With `lower`, ASCII letters are lowercased
+/// too, except the hex digits of the escapes that stay encoded.
+///
+/// How an escape normalizes is [`pct::rfc3986`]'s decision. It needs no
+/// UTF-8 from the decoded octets (`%FF` is a valid escape), and encodes a `%`
+/// that starts no escape, which only an unchecked parse can produce, as `%25`.
+/// Equality, hashing and `normalized()` all go through here.
+fn put_pct_normalized<S: Sink>(sink: &mut S, s: &str, lower: bool) {
+    for chunk in chunks(s) {
+        match chunk {
+            Chunk::Literal(run) if lower => sink.put_lower(run),
+            Chunk::Literal(run) => sink.put(run),
+            Chunk::Decoded(byte) => sink.put_ascii(if lower { byte.to_ascii_lowercase() } else { byte }),
+            Chunk::Encoded(escape) => {
+                for byte in escape {
+                    sink.put_ascii(byte);
+                }
+            }
+        }
     }
 }
 
-fn hash_pct_unreserved<H: Hasher>(s: &str, state: &mut H) {
-    if memchr::memchr(b'%', s.as_bytes()).is_none() {
-        state.write(s.as_bytes());
-        return;
+/// `s` percent-normalized, borrowed when that changes nothing.
+fn canonical(s: &str, lower: bool) -> Cow<'_, str> {
+    if memchr::memchr(b'%', s.as_bytes()).is_none() && !(lower && s.bytes().any(|b| b.is_ascii_uppercase())) {
+        return Cow::Borrowed(s);
     }
-    // SAFETY: input is a validated substring of a parsed IRI.
-    let ps = unsafe { PctStr::new_unchecked(s) };
-    ps.hash_rfc3986(state);
+    let mut out = String::with_capacity(s.len());
+    put_pct_normalized(&mut out, s, lower);
+    Cow::Owned(out)
 }
+
+/// The path percent-normalized and then stripped of dot segments.
+fn canonical_path(path: &str) -> Cow<'_, str> {
+    let decoded = canonical(path, false);
+    if path_is_normalized(&decoded) {
+        decoded
+    } else {
+        Cow::Owned(normalize_path(&decoded))
+    }
+}
+
+fn normalized_string(iri: &str, p: Positions, scheme_defaults: bool) -> String {
+    let mut out = String::with_capacity(iri.len());
+    write_normalized(iri, p, scheme_defaults, &mut out);
+    out
+}
+
+/// Generates `normalized` and `normalized_for_scheme` for one of the four
+/// reference types. The output is ASCII whenever the input is, so the URI
+/// types stay URIs.
+macro_rules! normalized_methods {
+    ($ty:ident, $field:ident $(. $inner:tt)?) => {
+        impl<T: Deref<Target = str>> $ty<T> {
+            /// Returns the RFC 3986/3987 §6.2.2 syntax-based normal form: the
+            /// scheme and host lowercased, escaped unreserved characters
+            /// decoded, other escapes in uppercase hex, and `.` and `..`
+            /// segments removed.
+            ///
+            /// This is the form equality and hashing compare, so the result is
+            /// equal to `self` and hashes alike (unless the `bytewise` feature
+            /// makes them byte-wise). The case of the user
+            /// info, path, query and fragment is kept, query parameters keep
+            /// their order, and no trailing slash is added or removed.
+            #[must_use]
+            pub fn normalized(&self) -> $ty<String> {
+                let s = normalized_string(&self$(.$inner)?.$field, self$(.$inner)?.positions, false);
+                $ty::parse_unchecked(s)
+            }
+
+            /// Returns [`normalized`](Self::normalized) with the RFC 3986
+            /// §6.2.3 scheme-based steps for `http` and `https` applied on top:
+            /// the default port (`:80`, `:443`) is dropped, and an empty path
+            /// under an authority becomes `/`. Other schemes are left as
+            /// `normalized` leaves them.
+            ///
+            /// Equality is protocol agnostic, so unlike `normalized` the
+            /// result can differ from `self`: `http://a:80` and `http://a/`
+            /// are not equal.
+            #[must_use]
+            pub fn normalized_for_scheme(&self) -> $ty<String> {
+                let s = normalized_string(&self$(.$inner)?.$field, self$(.$inner)?.positions, true);
+                $ty::parse_unchecked(s)
+            }
+        }
+    };
+}
+
+normalized_methods!(IriRef, iri);
+normalized_methods!(Iri, iri.0);
+normalized_methods!(UriRef, uri);
+normalized_methods!(Uri, uri.0);
 
 #[cfg(test)]
 mod tests {
@@ -332,5 +494,219 @@ mod tests {
             assert!(!eq(a, b), "`{a}` should not equal `{b}`");
             assert_ne!(hash_of(a), hash_of(b), "`{a}` and `{b}` hash alike");
         }
+    }
+
+    use crate::types::{IriBuf, IriRefBuf, UriBuf};
+
+    fn normalized(s: &str) -> String {
+        IriRefBuf::new(s).unwrap().normalized().into_inner()
+    }
+
+    fn normalized_for_scheme(s: &str) -> String {
+        IriRefBuf::new(s).unwrap().normalized_for_scheme().into_inner()
+    }
+
+    #[test]
+    fn normalized_applies_every_syntax_based_step() {
+        for (input, expected) in [
+            ("HTTP://Example.COM/", "http://example.com/"),
+            ("http://a/%7e%2f", "http://a/~%2F"),
+            ("http://a/b/./c/../d", "http://a/b/d"),
+            ("http://a/?q=%7e%3d#%7Ef", "http://a/?q=~%3D#~f"),
+            ("http://exa%6Dple.org/", "http://example.org/"),
+            ("http://ex%41mple.org/", "http://example.org/"),
+            ("http://A%c3%a9/", "http://a%C3%A9/"),
+            ("http://a/%ff%c3", "http://a/%FF%C3"),
+            ("http://[::A]:8080/", "http://[::a]:8080/"),
+            ("tag:Example.COM,2026:Foo", "tag:Example.COM,2026:Foo"),
+        ] {
+            assert_eq!(normalized(input), expected, "`{input}`");
+        }
+    }
+
+    #[test]
+    fn normalized_decodes_before_removing_dot_segments() {
+        assert_eq!(normalized("http://a/b/%2E%2E/c"), "http://a/c");
+        assert!(eq("http://a/b/%2E%2E/c", "http://a/c"));
+        assert_eq!(normalized("http://a/b/%2e/c"), "http://a/b/c");
+    }
+
+    #[test]
+    fn normalized_keeps_what_is_not_normalized() {
+        for input in [
+            "http://UsEr:PaSs@a/",
+            "http://a/Path/To",
+            "http://a/p?B=2&a=1",
+            "http://a/p#Frag",
+            "http://a/p/",
+            "http://a/p",
+            "http://a",
+            "http://a:80/",
+            "http://a:/",
+            "../a",
+            "",
+        ] {
+            assert_eq!(normalized(input), input, "`{input}`");
+        }
+    }
+
+    #[test]
+    fn normalized_keeps_user_info_case_but_normalizes_its_escapes() {
+        assert_eq!(normalized("http://UsEr%7e%2f@a/"), "http://UsEr~%2F@a/");
+        assert!(eq("http://UsEr%7e@a/", "http://UsEr~@a/"));
+        assert!(!eq("http://user@a/", "http://USER@a/"));
+    }
+
+    /// Removing dot segments can leave a path that would read back as another
+    /// component; the guard dot segment keeps it a path.
+    #[test]
+    fn normalized_guards_a_path_that_would_be_misread() {
+        for (input, expected) in [("http:/.//a", "http:/.//a"), ("./a:b", "./a:b"), ("x/../a:b", "./a:b")] {
+            let out = normalized(input);
+            assert_eq!(out, expected, "`{input}`");
+            let reparsed = IriRefBuf::new(out.clone()).unwrap();
+            assert_eq!(reparsed.path(), IriRefBuf::new(input).unwrap().normalized().path(), "`{input}`");
+            assert_eq!(reparsed.authority(), None, "`{input}`");
+            assert_eq!(reparsed.scheme(), IriRefBuf::new(input).unwrap().scheme(), "`{input}`");
+        }
+    }
+
+    #[test]
+    fn normalized_for_scheme_applies_http_defaults() {
+        for (input, expected) in [
+            ("HTTP://a:80", "http://a/"),
+            ("http://a:80/p?q", "http://a/p?q"),
+            ("https://a:443/p", "https://a/p"),
+            ("http://a", "http://a/"),
+            ("https://a?q", "https://a/?q"),
+            ("http://a:443/", "http://a:443/"),
+            ("https://a:80/", "https://a:80/"),
+            ("http://a:8080", "http://a:8080/"),
+            ("http://a/p/", "http://a/p/"),
+            ("ftp://a:21", "ftp://a:21"),
+            ("ftp://a", "ftp://a"),
+            ("http:p", "http:p"),
+            ("//a:80", "//a:80"),
+        ] {
+            assert_eq!(normalized_for_scheme(input), expected, "`{input}`");
+        }
+    }
+
+    #[test]
+    fn normalized_methods_exist_on_every_type() {
+        assert_eq!(IriBuf::new("HTTP://A/./b").unwrap().normalized(), "http://a/b");
+        assert_eq!(IriBuf::new("HTTP://A:80").unwrap().normalized_for_scheme().as_str(), "http://a/");
+        assert_eq!(UriBuf::new("HTTP://A/%7e").unwrap().normalized().as_str(), "http://a/~");
+        assert_eq!(crate::types::UriRefBuf::new("./%7E").unwrap().normalized().as_str(), "~");
+        assert_eq!(IriRef::parse("A/../é").unwrap().normalized().as_str(), "é");
+    }
+
+    const CORPUS: &[&str] = &[
+        "http://a/b",
+        "HTTP://A/b",
+        "http://a/%7Eb",
+        "http://a/%7eb",
+        "http://a/~b",
+        "http://a/%2f",
+        "http://a/%2F",
+        "http://a/b/../c",
+        "http://a/c",
+        "http://a/b/%2E%2E/c",
+        "http://a/b/%2e%2E/c/",
+        "http://exa%6Dple.org/",
+        "http://EXAMPLE.org/",
+        "http://example.org/",
+        "http://U%7e@h/",
+        "http://U~@h/",
+        "http://u~@h/",
+        "http://a:80/",
+        "http://a/",
+        "http://a",
+        "http://host//a",
+        "http://host/b/..//a",
+        "http:/.//a",
+        "http:/b/..//a",
+        "urn:a:b",
+        "urn:./a:b",
+        "../a",
+        "a",
+        "./a",
+        "..",
+        "",
+        "../..",
+        "../../",
+        "x/../a:b",
+        "./a:b",
+        "http://a/?Q=%7e",
+        "http://a/?Q=~",
+        "http://a/?q=~",
+        "http://a/#%7E",
+        "http://a/#~",
+        "http://[::A]/",
+        "http://[::a]/",
+        "http://A%c3%a9/",
+        "http://a%C3%A9/",
+        "http://a/%ff",
+        "http://a/%FF",
+        "http://a/%c3x",
+        "http://a/%C3x",
+        "http://é.org/%C3%A9",
+        "http://É.org/%c3%a9",
+    ];
+
+    fn hash_with<H: Hasher + Default>(s: &str) -> u64 {
+        let mut hasher = H::default();
+        normalized_hash(s, find_iri_ref_positions(s), &mut hasher);
+        hasher.finish()
+    }
+
+    /// Mixes every `write` call separately, as `FxHasher` does, so chunking
+    /// that depends on the input's spelling shows up as differing hashes.
+    #[derive(Default)]
+    struct CallSensitive(u64);
+
+    impl Hasher for CallSensitive {
+        fn finish(&self) -> u64 {
+            self.0
+        }
+
+        fn write(&mut self, bytes: &[u8]) {
+            let mut call = std::hash::DefaultHasher::new();
+            call.write(bytes);
+            self.0 = self.0.rotate_left(5) ^ call.finish();
+        }
+    }
+
+    /// `normalized()` is the form equality and hashing compare: every IRI
+    /// equals its normal form, two IRIs are equal exactly when their normal
+    /// forms are byte-equal, and equal IRIs hash alike under any hasher.
+    #[test]
+    fn normalized_agrees_with_eq_and_hash() {
+        for &a in CORPUS {
+            let na = normalized(a);
+            assert!(eq(a, &na), "`{a}` should equal its normal form `{na}`");
+            assert_eq!(normalized(&na), na, "normalizing `{a}` is not idempotent");
+            assert_eq!(hash_of(a), hash_of(&na), "`{a}` and `{na}` hash differently");
+            for &b in CORPUS {
+                let nb = normalized(b);
+                assert_eq!(eq(a, b), na == nb, "eq(`{a}`, `{b}`) disagrees with `{na}` vs `{nb}`");
+                if eq(a, b) {
+                    assert_eq!(hash_of(a), hash_of(b), "`{a}` and `{b}` hash differently");
+                    assert_eq!(
+                        hash_with::<CallSensitive>(a),
+                        hash_with::<CallSensitive>(b),
+                        "`{a}` and `{b}` reach the hasher differently"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn long_iris_hash_alike_across_chunk_boundaries() {
+        let a = format!("http://a/{}%7E{}", "x".repeat(HASH_CHUNK - 12), "y".repeat(2 * HASH_CHUNK));
+        let b = a.replace("%7E", "~");
+        assert!(eq(&a, &b));
+        assert_eq!(hash_with::<CallSensitive>(&a), hash_with::<CallSensitive>(&b));
     }
 }

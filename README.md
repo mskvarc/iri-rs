@@ -126,14 +126,25 @@ assert_eq!(r, "http://a/b/c/y");
 
 ## Equivalence
 
-Equality, ordering and hashing normalize:
+Equality and hashing compare the RFC 3986/3987 §6.2.2 syntax-based normal form:
 
-- **Dot segments** — `a/../a/./b/../b/c` ≡ `a/b/c`.
-- **Percent encoding** — `http://example.org` ≡ `http://exa%6dple.org` (via [`pct`](https://crates.io/crates/pct)).
-- **Protocol-agnostic** — `http://example.org` and `http://example.org:80` are **not** equal. This crate knows nothing about scheme defaults.
+- **Case** — the scheme and host are case-insensitive: `HTTP://Example.COM/` ≡ `http://example.com/`. The user info, path, query and fragment keep their case.
+- **Percent encoding** — escaped unreserved characters decode and hex digits are case-insensitive, in every component: `http://exa%6dple.org/%7e` ≡ `http://example.org/~`, `%2f` ≡ `%2F`.
+- **Dot segments** — `a/../a/./b/../b/c` ≡ `a/b/c`. Escapes decode first, so `/a/%2E%2E/b` ≡ `/b`.
+- **Protocol-agnostic** — `http://example.org` and `http://example.org:80` are **not** equal. Equality knows nothing about scheme defaults.
 - **Every `/` counts** — `/foo/bar` and `/foo/bar/` are **not** equal.
 
 Two values whose `as_str()` differs can still hash equal — keep that in mind when used as map keys.
+
+`normalized()` returns that normal form, so `iri.normalized() == iri` holds and both hash alike (without the `bytewise` feature). `normalized_for_scheme()` also applies the §6.2.3 `http`/`https` defaults: it drops `:80`/`:443` and turns an empty path into `/`. Its result can therefore differ from the input under `==`.
+
+```rust
+use iri_rs::IriBuf;
+
+let iri = IriBuf::new("HTTP://Example.COM:80/a/./b/../%7Ec?Q=1")?;
+assert_eq!(iri.normalized().as_str(), "http://example.com:80/a/~c?Q=1");
+assert_eq!(iri.normalized_for_scheme().as_str(), "http://example.com/a/~c?Q=1");
+```
 
 ## Examples
 

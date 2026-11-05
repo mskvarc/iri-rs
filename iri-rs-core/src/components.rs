@@ -57,9 +57,9 @@ pub fn path_is_absolute(path: &str) -> bool {
 /// whose scheme has already settled the ambiguity — guarding `urn:isbn:0451`'s
 /// `isbn:0451` would rewrite a path that was never in doubt, and force every
 /// `urn:`/`tag:`/`mailto:` comparison through an allocation. The two places
-/// that do drop the context, recomposition in [`crate::mutate`] and
-/// [`crate::relativize`], add the `./` themselves via the crate-internal
-/// `first_segment_has_colon`.
+/// that do drop the context, recomposition in [`crate::mutate`] (and in
+/// [`crate::normalize`]) and [`crate::relativize`], add the `./` themselves;
+/// recomposition does it through the crate-internal `path_guard`.
 #[must_use]
 pub fn normalize_path(path: &str) -> String {
     if path_is_normalized(path) {
@@ -147,6 +147,27 @@ pub(crate) fn first_segment_has_colon(path: &str) -> bool {
         None => path,
     };
     memchr::memchr(b':', first_segment.as_bytes()).is_some()
+}
+
+/// The dot segment that has to precede `path` when it is written after the
+/// given scheme and authority, so that it reads back as the same path.
+///
+/// Both cases are recoverable with a dot segment, which denotes the same path
+/// but cannot be misread on the way back in.
+#[inline]
+pub(crate) fn path_guard(has_scheme: bool, has_authority: bool, path: &str) -> &'static str {
+    if has_authority {
+        ""
+    } else if path.starts_with("//") {
+        // RFC 3986 §3.3: with no authority, a path may not begin with `//`.
+        "/."
+    } else if !has_scheme && first_segment_has_colon(path) {
+        // RFC 3986 §4.2: the first segment of a relative-path reference may not
+        // hold a `:`, or it reads as a scheme.
+        "./"
+    } else {
+        ""
+    }
 }
 
 fn pop_segment(out: &mut String, floor: &mut usize, absolute: bool) {

@@ -18,7 +18,7 @@ bytewise = []
 
 [dependencies]
 memchr = "2.8.3"
-pct = "4.0.1"
+pct = "4.1.0"
 serde = { version = "1.0.229", optional = true }
 simdutf8 = "0.1.5"
 thiserror = "2.0.19"

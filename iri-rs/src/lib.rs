@@ -166,11 +166,31 @@
 //! This means that for instance, the IRI `http:a/b/../../../` is equivalent to
 //! `http:../` and **not** `http:`.
 //!
+//! #### Case
+//!
+//! The scheme and host are compared case-insensitively. The user info, path,
+//! query and fragment are case-sensitive.
+//!
 //! #### Percent-encoded characters
 //!
-//! Thanks to the [`pct-str` crate](https://crates.io/crates/pct-str),
-//! percent encoded characters are correctly handled.
+//! Escaped unreserved characters are decoded and escape hex digits are
+//! case-insensitive, in every component, before dot segments are removed.
 //! The two IRIs `http://example.org` and `http://exa%6dple.org` **are** equivalent.
+//!
+//! #### The normal form
+//!
+//! `normalized` returns the form that equality and hashing compare, so it is
+//! equal to the IRI it came from (unless the `bytewise` feature is on). `normalized_for_scheme` also applies
+//! the RFC 3986 §6.2.3 `http`/`https` defaults (no `:80`/`:443`, `/` for an
+//! empty path), so its result may not be equal to the original.
+//!
+//! ```rust
+//! use iri_rs::IriBuf;
+//!
+//! let iri = IriBuf::new("HTTP://Example.COM:80/a/./b/../%7Ec?Q=1").unwrap();
+//! assert_eq!(iri.normalized().as_str(), "http://example.com:80/a/~c?Q=1");
+//! assert_eq!(iri.normalized_for_scheme().as_str(), "http://example.com/a/~c?Q=1");
+//! ```
 pub use iri_rs_core::*;
 
 #[doc(hidden)]

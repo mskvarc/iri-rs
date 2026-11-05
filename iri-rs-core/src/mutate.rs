@@ -1,7 +1,7 @@
 //! Mutation methods on owning buffer types (`IriBuf`, `IriRefBuf`, `UriBuf`, `UriRefBuf`).
 
 use crate::{
-    components::first_segment_has_colon,
+    components::path_guard,
     error::{InvalidIri, InvalidUri, IriParseError},
     parse::find_iri_ref_positions,
     resolve::resolve,
@@ -337,19 +337,10 @@ fn write_iri(out: &mut String, scheme: Option<&str>, authority: Option<&str>, pa
     if let Some(a) = authority {
         out.push_str("//");
         out.push_str(a);
-    } else {
-        // Removing a component can leave the path looking like the component
-        // that is now gone. Both cases are recoverable with a dot segment,
-        // which denotes the same path but cannot be misread on the way back in.
-        if path.starts_with("//") {
-            // RFC 3986 §3.3: with no authority, a path may not begin with `//`.
-            out.push_str("/.");
-        } else if scheme.is_none() && first_segment_has_colon(path) {
-            // RFC 3986 §4.2: the first segment of a relative-path reference
-            // may not hold a `:`, or it reads as a scheme.
-            out.push_str("./");
-        }
     }
+    // Removing a component can leave the path looking like the component that
+    // is now gone; the guard keeps it readable as a path.
+    out.push_str(path_guard(scheme.is_some(), authority.is_some(), path));
     out.push_str(path);
     if let Some(q) = query {
         out.push('?');
