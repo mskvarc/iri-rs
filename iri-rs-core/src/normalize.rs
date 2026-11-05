@@ -13,7 +13,9 @@
 //!   `%XX` triplets;
 //! * port: kept as written;
 //! * path: percent-normalized, then dot segments removed by
-//!   [`normalize_path`];
+//!   [`normalize_path`]. A relative-path reference (no scheme, no authority)
+//!   whose path that empties becomes `./`: against a base, `.` and `a/..`
+//!   name the base's directory, while an empty path names the base itself;
 //! * query, fragment: percent-normalized, case and order kept.
 //!
 //! Percent-normalization decodes escaped unreserved characters (letters,
@@ -72,7 +74,7 @@ pub fn iri_cmp(a: &str, pa: Positions, b: &str, pb: Positions) -> Ordering {
     let (x, y) = (Parts::of(a, pa), Parts::of(b, pb));
     opt_cmp(x.scheme, y.scheme, lower_cmp)
         .then_with(|| opt_cmp(x.authority, y.authority, authority_cmp))
-        .then_with(|| path_cmp(x.path, y.path))
+        .then_with(|| path_cmp(x.path, y.path, x.scheme.is_none() && x.authority.is_none()))
         .then_with(|| opt_cmp(x.query, y.query, pct_cmp))
         .then_with(|| opt_cmp(x.fragment, y.fragment, pct_cmp))
 }
@@ -106,11 +108,14 @@ fn host_cmp(a: &str, b: &str) -> Ordering {
     canonical(a, true).cmp(&canonical(b, true))
 }
 
-fn path_cmp(a: &str, b: &str) -> Ordering {
+/// `relative` says that both paths belong to relative-path references. The
+/// caller only gets here when the schemes and authorities compared equal, so
+/// it holds for both or neither.
+fn path_cmp(a: &str, b: &str, relative: bool) -> Ordering {
     if a == b {
         return Ordering::Equal;
     }
-    canonical_path(a).cmp(&canonical_path(b))
+    canonical_path(a, relative).cmp(&canonical_path(b, relative))
 }
 
 fn pct_cmp(a: &str, b: &str) -> Ordering {
@@ -127,7 +132,7 @@ pub fn authority_eq(a: &str, b: &str) -> bool {
 
 #[must_use]
 pub fn path_eq_normalized(a: &str, b: &str) -> bool {
-    path_cmp(a, b) == Ordering::Equal
+    path_cmp(a, b, false) == Ordering::Equal
 }
 
 #[must_use]
@@ -261,7 +266,7 @@ fn write_normalized<S: Sink>(iri: &str, p: Positions, scheme_defaults: bool, sin
             sink.put(port);
         }
     }
-    let path = canonical_path(&iri[p.authority_end..p.path_end]);
+    let path = canonical_path(&iri[p.authority_end..p.path_end], scheme.is_none() && !has_authority);
     if path.is_empty() && has_authority && default_port.is_some() {
         sink.put("/");
     } else {
@@ -311,12 +316,22 @@ fn canonical(s: &str, lower: bool) -> Cow<'_, str> {
 }
 
 /// The path percent-normalized and then stripped of dot segments.
-fn canonical_path(path: &str) -> Cow<'_, str> {
+///
+/// With `relative`, the path belongs to a relative-path reference, and one that
+/// empties keeps a `./`. Resolution merges such a path with the base's, so `.`
+/// and `a/..` name the base's directory (`http://a/b/` against `http://a/b/c`)
+/// while an empty path names the base itself. Under a scheme or an authority
+/// the path is used as it is, and empty is right: `foo:a/..` is `foo:`.
+fn canonical_path(path: &str, relative: bool) -> Cow<'_, str> {
     let decoded = canonical(path, false);
     if path_is_normalized(&decoded) {
-        decoded
+        return decoded;
+    }
+    let normalized = normalize_path(&decoded);
+    if relative && normalized.is_empty() {
+        Cow::Borrowed("./")
     } else {
-        Cow::Owned(normalize_path(&decoded))
+        Cow::Owned(normalized)
     }
 }
 
@@ -439,6 +454,74 @@ mod tests {
     fn equal_relative_references_are_recognised() {
         for (a, b) in [("../..", "../../"), ("./a", "a"), ("a/../b", "b"), ("../a/..", "../"), ("x/./y", "x/y")] {
             assert!(eq(a, b), "`{a}` should equal `{b}`");
+        }
+    }
+
+    /// A relative-path reference whose path dot removal empties still names
+    /// the base's directory, not the base, so it keeps a `./`.
+    #[test]
+    fn relative_references_naming_the_base_directory_keep_dot_slash() {
+        for a in [".", "./", "a/..", "%2E", "a/b/../..", "./."] {
+            assert_eq!(normalized(a), "./", "`{a}`");
+            assert!(!eq(a, ""), "`{a}` should not equal the empty reference");
+            assert!(eq(a, "./"), "`{a}` should equal `./`");
+        }
+        assert_eq!(normalized(".?q"), "./?q");
+        assert!(!eq(".?q", "?q"));
+        // With a scheme the path is not merged with a base, so empty is right.
+        assert_eq!(normalized("foo:a/.."), "foo:");
+        assert!(eq("foo:.", "foo:"));
+    }
+
+    /// Normalizing a reference never changes what it resolves to.
+    ///
+    /// Left out: bases whose merged path can climb out of a rootless path
+    /// (`a/..` against `foo:`), and `%2E%2E` segments climbing past one. There
+    /// resolution removes dot segments as the original RFC 3986 §5.2.4 does,
+    /// while the normal form follows Errata 4547, so the two disagree.
+    #[test]
+    fn normalizing_a_reference_keeps_its_resolution() {
+        use crate::types::{IriBuf, IriRefBuf};
+        let bases = ["http://a/b/c", "http://a/b/c/", "http://a", "foo:/a/b", "foo:a/b"];
+        let refs = [
+            "",
+            ".",
+            "./",
+            "..",
+            "../",
+            "a/..",
+            "a/../..",
+            "./a",
+            "../a",
+            "?q",
+            ".?q",
+            "#f",
+            ".#f",
+            "%2E",
+            "a/./b/../c",
+            "//h/.",
+            "//h",
+            "/.",
+            "/a/..",
+        ];
+        for base in bases {
+            let base = IriBuf::new(base.to_owned()).unwrap();
+            for r in refs {
+                let resolve = |s: &str| {
+                    let mut buf = IriRefBuf::new(s.to_owned()).unwrap();
+                    buf.resolve(&base).unwrap();
+                    buf
+                };
+                let (plain, norm) = (resolve(r), resolve(&normalized(r)));
+                // Through `iri_eq`, which `bytewise` does not swap out.
+                assert!(
+                    eq(plain.as_str(), norm.as_str()),
+                    "`{r}` resolves to `{}`, its normal form `{}` to `{}`",
+                    plain.as_str(),
+                    normalized(r),
+                    norm.as_str()
+                );
+            }
         }
     }
 
@@ -635,6 +718,16 @@ mod tests {
         "../../",
         "x/../a:b",
         "./a:b",
+        ".",
+        "./",
+        "a/..",
+        "%2E",
+        ".?q",
+        "./?q",
+        "?q",
+        "foo:a/..",
+        "foo:",
+        "foo:.",
         "http://a/?Q=%7e",
         "http://a/?Q=~",
         "http://a/?q=~",
