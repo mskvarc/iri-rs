@@ -1,7 +1,9 @@
 //! Generic `Iri<T>`, `IriRef<T>`, `Uri<T>`, `UriRef<T>` — parse-once, cached positions.
 
+#[cfg(feature = "bytewise")]
+use std::borrow::Borrow;
 use std::{
-    borrow::{Borrow, Cow},
+    borrow::Cow,
     cmp::Ordering,
     convert::TryFrom,
     fmt,
@@ -154,6 +156,7 @@ impl<T: Deref<Target = str>> AsRef<str> for IriRef<T> {
     }
 }
 
+#[cfg(feature = "bytewise")]
 impl<T: Deref<Target = str>> Borrow<str> for IriRef<T> {
     #[inline]
     fn borrow(&self) -> &str {
@@ -421,6 +424,7 @@ impl<T: Deref<Target = str>> AsRef<str> for Iri<T> {
         <IriRef<T> as AsRef<str>>::as_ref(&self.0)
     }
 }
+#[cfg(feature = "bytewise")]
 impl<T: Deref<Target = str>> Borrow<str> for Iri<T> {
     fn borrow(&self) -> &str {
         self.0.borrow()
@@ -612,6 +616,7 @@ impl<T: Deref<Target = str>> AsRef<str> for UriRef<T> {
         &self.uri
     }
 }
+#[cfg(feature = "bytewise")]
 impl<T: Deref<Target = str>> Borrow<str> for UriRef<T> {
     fn borrow(&self) -> &str {
         &self.uri
@@ -742,6 +747,7 @@ impl<T: Deref<Target = str>> AsRef<str> for Uri<T> {
         <UriRef<T> as AsRef<str>>::as_ref(&self.0)
     }
 }
+#[cfg(feature = "bytewise")]
 impl<T: Deref<Target = str>> Borrow<str> for Uri<T> {
     fn borrow(&self) -> &str {
         self.0.borrow()
@@ -1070,6 +1076,22 @@ mod serde_impls {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `Borrow<str>` exists only where `str` compares and hashes like the
+    /// owned type, so a lookup by the key's own text finds it.
+    #[cfg(feature = "bytewise")]
+    #[test]
+    fn maps_and_sets_are_looked_up_by_str() {
+        use std::collections::{BTreeSet, HashSet};
+        for s in ["HTTP://A/b", "http://a/%7e", "foo:bar"] {
+            let iri = IriBuf::new(s.to_owned()).unwrap();
+            let uri = UriBuf::new(s.to_owned()).unwrap();
+            assert!(HashSet::from([iri.clone()]).contains(s), "{s:?}");
+            assert!(BTreeSet::from([iri]).contains(s), "{s:?}");
+            assert!(HashSet::from([uri.clone()]).contains(s), "{s:?}");
+            assert!(BTreeSet::from([uri]).contains(s), "{s:?}");
+        }
+    }
 
     #[test]
     fn basic_iri() {
