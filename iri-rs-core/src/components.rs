@@ -65,6 +65,11 @@ pub fn normalize_path(path: &str) -> String {
     if path_is_normalized(path) {
         return path.to_owned();
     }
+    remove_dot_segments(path)
+}
+
+/// The dot-segment removal loop of [`normalize_path`], without its shortcut.
+fn remove_dot_segments(path: &str) -> String {
     let absolute = path.starts_with('/');
     let mut input = path;
     let mut out = String::with_capacity(path.len());
@@ -122,14 +127,27 @@ fn close_directory(out: &str, absolute: bool) -> &'static str {
     if out.is_empty() && !absolute { "" } else { "/" }
 }
 
-/// Whether [`normalize_path`] would return `path` unchanged.
+/// Whether [`normalize_path`] would return `path` unchanged, judged by
+/// whether any segment is `.` or `..`.
 ///
 /// The single source of truth for that question: callers on the comparison and
-/// hashing paths use it to skip the allocation, and they must agree with
-/// [`normalize_path`] exactly or equal IRIs would hash apart.
+/// hashing paths use it to skip the allocation. It may be conservative (`../a`
+/// has a `..` that normalization keeps) but never optimistic, or equal IRIs
+/// would hash apart. Dots inside a segment (`n.html`, `.well-known`, `a..b`)
+/// do not count.
 #[inline]
 pub(crate) fn path_is_normalized(path: &str) -> bool {
-    memchr::memchr(b'.', path.as_bytes()).is_none()
+    let bytes = path.as_bytes();
+    memchr::memchr_iter(b'.', bytes).all(|i| {
+        // A dot segment starts at a segment start, holds one or two dots,
+        // and ends at a `/` or the end of the path.
+        if i > 0 && bytes[i - 1] != b'/' {
+            return true;
+        }
+        let rest = &bytes[i + 1..];
+        let rest = rest.strip_prefix(b".").unwrap_or(rest);
+        !(rest.is_empty() || rest[0] == b'/')
+    })
 }
 
 /// Whether `path` is a relative path whose first segment holds a `:`, which
@@ -394,6 +412,31 @@ mod tests {
     fn first_segment_colon_is_detectable() {
         for (path, expected) in [("a:b", true), ("a/b:c", false), ("/a:b", false), ("", false), ("a", false)] {
             assert_eq!(first_segment_has_colon(path), expected, "path `{path}`");
+        }
+    }
+
+    /// `path_is_normalized` never claims a path normal that the removal loop
+    /// would change, and does not mistake dots inside a segment for dot
+    /// segments.
+    #[test]
+    fn path_is_normalized_is_never_optimistic() {
+        const POOL: &[char] = &['.', '.', '.', '/', '/', 'a', ':'];
+        for path in ["n.html", "/a/.well-known/x", "a..b", "/...", "/.a/", "a./b", "/a/b.c/d"] {
+            assert!(path_is_normalized(path), "`{path}`");
+        }
+        for path in ["/a/.", "/a/..", "./a", ".", "..", "/./", "a/./b", "/a/../b"] {
+            assert!(!path_is_normalized(path), "`{path}`");
+        }
+        let mut state: u32 = 0x5eed_0001;
+        let mut next = || {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (state >> 8) as usize
+        };
+        for _ in 0..50_000 {
+            let path: String = (0..next() % 12).map(|_| POOL[next() % POOL.len()]).collect();
+            if path_is_normalized(&path) {
+                assert_eq!(remove_dot_segments(&path), path, "`{path}` was claimed normal");
+            }
         }
     }
 

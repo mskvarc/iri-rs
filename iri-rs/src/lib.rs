@@ -179,7 +179,7 @@
 //!
 //! #### The normal form
 //!
-//! `normalized` returns the form that equality and hashing compare, so it is
+//! `normalized` returns the form that equality, hashing and ordering compare, so it is
 //! equal to the IRI it came from (unless the `bytewise` feature is on). `normalized_for_scheme` also applies
 //! the RFC 3986 §6.2.3 `http`/`https` defaults (no `:80`/`:443`, `/` for an
 //! empty path), so its result may not be equal to the original.

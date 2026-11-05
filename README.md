@@ -126,7 +126,7 @@ assert_eq!(r, "http://a/b/c/y");
 
 ## Equivalence
 
-Equality and hashing compare the RFC 3986/3987 §6.2.2 syntax-based normal form:
+Equality, hashing and ordering compare the RFC 3986/3987 §6.2.2 syntax-based normal form:
 
 - **Case** — the scheme and host are case-insensitive: `HTTP://Example.COM/` ≡ `http://example.com/`. The user info, path, query and fragment keep their case.
 - **Percent encoding** — escaped unreserved characters decode and hex digits are case-insensitive, in every component: `http://exa%6dple.org/%7e` ≡ `http://example.org/~`, `%2f` ≡ `%2F`.
@@ -134,7 +134,7 @@ Equality and hashing compare the RFC 3986/3987 §6.2.2 syntax-based normal form:
 - **Protocol-agnostic** — `http://example.org` and `http://example.org:80` are **not** equal. Equality knows nothing about scheme defaults.
 - **Every `/` counts** — `/foo/bar` and `/foo/bar/` are **not** equal.
 
-Two values whose `as_str()` differs can still hash equal — keep that in mind when used as map keys.
+Two values whose `as_str()` differs can still hash equal and compare `Equal` — keep that in mind when used as map keys. Ordering sorts component by component (scheme, then user info, host and port, then path, query and fragment), not by the raw string.
 
 `normalized()` returns that normal form, so `iri.normalized() == iri` holds and both hash alike (without the `bytewise` feature). `normalized_for_scheme()` also applies the §6.2.3 `http`/`https` defaults: it drops `:80`/`:443` and turns an empty path into `/`. Its result can therefore differ from the input under `==`.
 

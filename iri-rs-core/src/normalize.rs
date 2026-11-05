@@ -30,111 +30,109 @@ use crate::{
     types::{Iri, IriRef, Uri, UriRef},
 };
 
-pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
-    if a == b {
-        return true;
-    }
-    let sa = if pa.scheme_end > 0 { Some(&a[..pa.scheme_end - 1]) } else { None };
-    let sb = if pb.scheme_end > 0 { Some(&b[..pb.scheme_end - 1]) } else { None };
-    if sa.map(str::len) != sb.map(str::len) {
-        return false;
-    }
-    match (sa, sb) {
-        (Some(x), Some(y)) => {
-            if !x.eq_ignore_ascii_case(y) {
-                return false;
-            }
-        }
-        (None, None) => {}
-        _ => return false,
-    }
-    let aa = if pa.authority_end > pa.scheme_end + 2 {
-        Some(&a[pa.scheme_end + 2..pa.authority_end])
-    } else if pa.authority_end == pa.scheme_end {
-        None
-    } else {
-        Some("")
-    };
-    let ab = if pb.authority_end > pb.scheme_end + 2 {
-        Some(&b[pb.scheme_end + 2..pb.authority_end])
-    } else if pb.authority_end == pb.scheme_end {
-        None
-    } else {
-        Some("")
-    };
-    match (aa, ab) {
-        (Some(x), Some(y)) => {
-            if !authority_eq(x, y) {
-                return false;
-            }
-        }
-        (None, None) => {}
-        _ => return false,
-    }
-    let pa_path = &a[pa.authority_end..pa.path_end];
-    let pb_path = &b[pb.authority_end..pb.path_end];
-    if !path_eq_normalized(pa_path, pb_path) {
-        return false;
-    }
-    let qa = if pa.query_end > pa.path_end {
-        Some(&a[pa.path_end + 1..pa.query_end])
-    } else {
-        None
-    };
-    let qb = if pb.query_end > pb.path_end {
-        Some(&b[pb.path_end + 1..pb.query_end])
-    } else {
-        None
-    };
-    if !opt_pct_unreserved_eq(qa, qb) {
-        return false;
-    }
-    let fa = if a.len() > pa.query_end { Some(&a[pa.query_end + 1..]) } else { None };
-    let fb = if b.len() > pb.query_end { Some(&b[pb.query_end + 1..]) } else { None };
-    opt_pct_unreserved_eq(fa, fb)
+/// The components of an IRI reference, as equality and ordering see them.
+struct Parts<'a> {
+    scheme: Option<&'a str>,
+    /// `Some("")` for an empty authority (`file:///`), `None` for none.
+    authority: Option<&'a str>,
+    path: &'a str,
+    query: Option<&'a str>,
+    fragment: Option<&'a str>,
 }
 
+impl<'a> Parts<'a> {
+    fn of(s: &'a str, p: Positions) -> Self {
+        Self {
+            scheme: (p.scheme_end > 0).then(|| &s[..p.scheme_end - 1]),
+            authority: (p.authority_end > p.scheme_end).then(|| &s[p.scheme_end + 2..p.authority_end]),
+            path: &s[p.authority_end..p.path_end],
+            query: (p.query_end > p.path_end).then(|| &s[p.path_end + 1..p.query_end]),
+            fragment: (s.len() > p.query_end).then(|| &s[p.query_end + 1..]),
+        }
+    }
+}
+
+/// Whether two IRI references have the same normal form.
+#[must_use]
+pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
+    iri_cmp(a, pa, b, pb) == Ordering::Equal
+}
+
+/// Orders IRI references by their normal form, component by component: the
+/// scheme, then the user info, host and port, then the path, query and
+/// fragment. A missing component sorts before a present one.
+///
+/// This is the single definition of equivalence: [`iri_eq`] is
+/// `iri_cmp(..) == Equal`, so ordering and equality cannot disagree.
 #[must_use]
 pub fn iri_cmp(a: &str, pa: Positions, b: &str, pb: Positions) -> Ordering {
-    let sa = if pa.scheme_end > 0 { &a[..pa.scheme_end - 1] } else { "" };
-    let sb = if pb.scheme_end > 0 { &b[..pb.scheme_end - 1] } else { "" };
-    match sa.bytes().map(|c| c.to_ascii_lowercase()).cmp(sb.bytes().map(|c| c.to_ascii_lowercase())) {
-        Ordering::Equal => {}
-        o => return o,
+    if a == b {
+        return Ordering::Equal;
     }
-    a[pa.scheme_end..].cmp(&b[pb.scheme_end..])
+    let (x, y) = (Parts::of(a, pa), Parts::of(b, pb));
+    opt_cmp(x.scheme, y.scheme, lower_cmp)
+        .then_with(|| opt_cmp(x.authority, y.authority, authority_cmp))
+        .then_with(|| path_cmp(x.path, y.path))
+        .then_with(|| opt_cmp(x.query, y.query, pct_cmp))
+        .then_with(|| opt_cmp(x.fragment, y.fragment, pct_cmp))
+}
+
+fn opt_cmp(a: Option<&str>, b: Option<&str>, cmp: impl FnOnce(&str, &str) -> Ordering) -> Ordering {
+    match (a, b) {
+        (Some(x), Some(y)) => cmp(x, y),
+        _ => a.is_some().cmp(&b.is_some()),
+    }
+}
+
+fn lower_cmp(a: &str, b: &str) -> Ordering {
+    if a.eq_ignore_ascii_case(b) {
+        return Ordering::Equal;
+    }
+    a.bytes().map(|c| c.to_ascii_lowercase()).cmp(b.bytes().map(|c| c.to_ascii_lowercase()))
+}
+
+fn authority_cmp(a: &str, b: &str) -> Ordering {
+    let (ui_a, host_a, port_a) = split_authority(a);
+    let (ui_b, host_b, port_b) = split_authority(b);
+    opt_cmp(ui_a, ui_b, pct_cmp)
+        .then_with(|| host_cmp(host_a, host_b))
+        .then_with(|| port_a.cmp(&port_b))
+}
+
+fn host_cmp(a: &str, b: &str) -> Ordering {
+    if memchr::memchr(b'%', a.as_bytes()).is_none() && memchr::memchr(b'%', b.as_bytes()).is_none() {
+        return lower_cmp(a, b);
+    }
+    canonical(a, true).cmp(&canonical(b, true))
+}
+
+fn path_cmp(a: &str, b: &str) -> Ordering {
+    if a == b {
+        return Ordering::Equal;
+    }
+    canonical_path(a).cmp(&canonical_path(b))
+}
+
+fn pct_cmp(a: &str, b: &str) -> Ordering {
+    if a == b {
+        return Ordering::Equal;
+    }
+    canonical(a, false).cmp(&canonical(b, false))
 }
 
 #[must_use]
 pub fn authority_eq(a: &str, b: &str) -> bool {
-    let (ui_a, host_a, port_a) = split_authority(a);
-    let (ui_b, host_b, port_b) = split_authority(b);
-    opt_pct_unreserved_eq(ui_a, ui_b) && host_eq(host_a, host_b) && port_a == port_b
-}
-
-fn host_eq(a: &str, b: &str) -> bool {
-    if memchr::memchr(b'%', a.as_bytes()).is_none() && memchr::memchr(b'%', b.as_bytes()).is_none() {
-        return a.eq_ignore_ascii_case(b);
-    }
-    canonical(a, true) == canonical(b, true)
+    authority_cmp(a, b) == Ordering::Equal
 }
 
 #[must_use]
 pub fn path_eq_normalized(a: &str, b: &str) -> bool {
-    a == b || canonical_path(a) == canonical_path(b)
-}
-
-fn opt_pct_unreserved_eq(a: Option<&str>, b: Option<&str>) -> bool {
-    match (a, b) {
-        (Some(x), Some(y)) => pct_unreserved_eq(x, y),
-        (None, None) => true,
-        _ => false,
-    }
+    path_cmp(a, b) == Ordering::Equal
 }
 
 #[must_use]
 pub fn pct_unreserved_eq(a: &str, b: &str) -> bool {
-    a == b || canonical(a, false) == canonical(b, false)
+    pct_cmp(a, b) == Ordering::Equal
 }
 
 /// Hashes the normal form, so IRIs that compare equal hash alike.
@@ -700,6 +698,50 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn cmp(a: &str, b: &str) -> Ordering {
+        iri_cmp(a, find_iri_ref_positions(a), b, find_iri_ref_positions(b))
+    }
+
+    #[test]
+    fn equal_iris_order_as_equal() {
+        for (a, b) in [
+            ("http://A/", "http://a/"),
+            ("http://a/%7E", "http://a/~"),
+            ("http://a/b/../c", "http://a/c"),
+            ("HTTP://a", "http://a"),
+        ] {
+            assert_eq!(cmp(a, b), Ordering::Equal, "`{a}` vs `{b}`");
+        }
+    }
+
+    /// `iri_cmp` is a total order over the corpus, and equality is exactly
+    /// its `Equal`, as `Ord` requires.
+    #[test]
+    fn ordering_is_a_total_order_consistent_with_eq() {
+        for &a in CORPUS {
+            assert_eq!(cmp(a, a), Ordering::Equal, "`{a}`");
+            for &b in CORPUS {
+                let ab = cmp(a, b);
+                assert_eq!(ab, cmp(b, a).reverse(), "`{a}` vs `{b}` is not antisymmetric");
+                assert_eq!(ab == Ordering::Equal, normalized(a) == normalized(b), "`{a}` vs `{b}`");
+                for &c in CORPUS {
+                    if ab != Ordering::Greater && cmp(b, c) != Ordering::Greater {
+                        assert_ne!(cmp(a, c), Ordering::Greater, "`{a}` <= `{b}` <= `{c}` but `{a}` > `{c}`");
+                    }
+                }
+            }
+        }
+    }
+
+    /// Through the `Ord` impl, which `bytewise` swaps for a byte-wise one.
+    #[cfg(not(feature = "bytewise"))]
+    #[test]
+    fn btree_set_deduplicates_equal_iris() {
+        let set: std::collections::BTreeSet<IriRefBuf> = CORPUS.iter().map(|s| IriRefBuf::new(*s).unwrap()).collect();
+        let distinct: std::collections::HashSet<String> = CORPUS.iter().map(|s| normalized(s)).collect();
+        assert_eq!(set.len(), distinct.len());
     }
 
     #[test]
