@@ -53,7 +53,7 @@ Cargo unifies features across a dependency graph, which makes this a global swit
 - `Iri` / `IriBuf`, `IriRef` / `IriRefBuf` — IRIs and IRI references (RFC 3987).
 - `Uri` / `UriBuf`, `UriRef` / `UriRefBuf` — URIs and URI references (RFC 3986).
 - `Positions` — pre-computed component ends. Used by `from_raw_parts` for const construction in [`iri-rs-static`](../iri-rs-static/) and [`iri-rs-enum`](../iri-rs-enum/).
-- Strict RFC 3986 §5 reference resolution with [Errata 4547](https://www.rfc-editor.org/errata/eid4547).
+- Strict RFC 3986 §5 reference resolution, matching its §5.4 examples.
 - RFC 3986/3987 §6.2.2 normalization: `normalized()` returns the normal form that equality, hashing and ordering compare (protocol-agnostic, percent-decoding-aware); `normalized_for_scheme()` adds the §6.2.3 `http`/`https` defaults.
 
 ## Performance notes

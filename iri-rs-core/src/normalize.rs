@@ -12,10 +12,14 @@
 //! * host: percent-normalized, then ASCII-lowercased outside the remaining
 //!   `%XX` triplets;
 //! * port: kept as written;
-//! * path: percent-normalized, then dot segments removed by
-//!   [`normalize_path`]. A relative-path reference (no scheme, no authority)
-//!   whose path that empties becomes `./`: against a base, `.` and `a/..`
-//!   name the base's directory, while an empty path names the base itself;
+//! * path: percent-normalized, then dot segments removed. Under a scheme or
+//!   an authority that is RFC 3986 §5.2.4 `remove_dot_segments` as resolution
+//!   runs it, so `foo:a/../../b` is `foo:/b`, what it resolves to. A
+//!   relative-path reference (no scheme, no authority) goes through
+//!   [`normalize_path`] instead, which keeps a `..` with nothing to climb
+//!   over, since it still climbs the base it is resolved against. One whose
+//!   path that empties becomes `./`: against a base, `.` and `a/..` name the
+//!   base's directory, while an empty path names the base itself;
 //! * query, fragment: percent-normalized, case and order kept.
 //!
 //! Percent-normalization decodes escaped unreserved characters (letters,
@@ -29,6 +33,7 @@ use pct::rfc3986::{Chunk, chunks};
 use crate::{
     components::{normalize_path, path_guard, path_is_normalized, split_authority},
     parse::Positions,
+    resolve::remove_dot_segments,
     types::{Iri, IriRef, Uri, UriRef},
 };
 
@@ -317,22 +322,25 @@ fn canonical(s: &str, lower: bool) -> Cow<'_, str> {
 
 /// The path percent-normalized and then stripped of dot segments.
 ///
-/// With `relative`, the path belongs to a relative-path reference, and one that
-/// empties keeps a `./`. Resolution merges such a path with the base's, so `.`
-/// and `a/..` name the base's directory (`http://a/b/` against `http://a/b/c`)
-/// while an empty path names the base itself. Under a scheme or an authority
-/// the path is used as it is, and empty is right: `foo:a/..` is `foo:`.
+/// Under a scheme or an authority the dot segments go as resolution removes
+/// them (RFC 3986 §5.2.4), so the normal form is what the reference resolves
+/// to: `foo:a/..` is `foo:`, and `foo:a/../../b` is `foo:/b`.
+///
+/// With `relative`, the path belongs to a relative-path reference, which has
+/// yet to be merged with a base. [`normalize_path`] keeps the `..` segments
+/// that would climb that base, and a path that empties keeps a `./`: `.` and
+/// `a/..` name the base's directory (`http://a/b/` against `http://a/b/c`),
+/// while an empty path names the base itself.
 fn canonical_path(path: &str, relative: bool) -> Cow<'_, str> {
     let decoded = canonical(path, false);
     if path_is_normalized(&decoded) {
         return decoded;
     }
-    let normalized = normalize_path(&decoded);
-    if relative && normalized.is_empty() {
-        Cow::Borrowed("./")
-    } else {
-        Cow::Owned(normalized)
+    if !relative {
+        return Cow::Owned(remove_dot_segments(&decoded));
     }
+    let normalized = normalize_path(&decoded);
+    if normalized.is_empty() { Cow::Borrowed("./") } else { Cow::Owned(normalized) }
 }
 
 fn normalized_string(iri: &str, p: Positions, scheme_defaults: bool) -> String {
@@ -468,17 +476,73 @@ mod tests {
         }
         assert_eq!(normalized(".?q"), "./?q");
         assert!(!eq(".?q", "?q"));
-        // With a scheme the path is not merged with a base, so empty is right.
-        assert_eq!(normalized("foo:a/.."), "foo:");
+        // With a scheme the path is not merged with a base: dot segments go as
+        // resolution removes them.
+        assert_eq!(normalized("foo:a/.."), "foo:/");
         assert!(eq("foo:.", "foo:"));
+    }
+
+    /// Under a scheme, dot segments go exactly as resolution removes them
+    /// (RFC 3986 §5.2.4, not Errata 4547), so equal IRIs resolve alike.
+    #[test]
+    fn dot_segments_under_a_scheme_go_as_resolution_removes_them() {
+        for (a, expected) in [
+            ("foo:a/../../b", "foo:/b"),
+            ("foo:../b", "foo:b"),
+            ("foo:a/..", "foo:/"),
+            ("foo:.", "foo:"),
+            ("foo:a/../..", "foo:/"),
+            ("foo:a/..//b", "foo:/.//b"),
+            ("http://a/../g", "http://a/g"),
+            ("http://a/b/../../../g", "http://a/g"),
+            ("//h/../g", "//h/g"),
+        ] {
+            assert_eq!(normalized(a), expected, "`{a}`");
+        }
+        assert!(!eq("foo:a/../../b", "foo:../b"));
+        // Without a scheme or authority the `..` still has a base to climb.
+        assert_eq!(normalized("a/../../b"), "../b");
+    }
+
+    /// Every IRI with a scheme equals what it resolves to: resolution applies
+    /// the same dot-segment removal as the normal form.
+    #[test]
+    fn an_iri_equals_its_resolution() {
+        const SEGMENTS: &[&str] = &["", "a", "b", ".", "..", "%2E", "%2e%2E", "a:b"];
+        use crate::types::{IriBuf, IriRefBuf};
+        let base = IriBuf::new("http://x/y".to_owned()).unwrap();
+        let mut state: u32 = 0x00d0_7d07;
+        let mut next = || {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (state >> 8) as usize
+        };
+        for _ in 0..20_000 {
+            let mut s = String::from(["foo:", "http://h", "foo://"][next() % 3]);
+            let rooted = !s.ends_with(':') || next() % 2 == 0;
+            for i in 0..next() % 6 {
+                if i > 0 || rooted {
+                    s.push('/');
+                }
+                s.push_str(SEGMENTS[next() % SEGMENTS.len()]);
+            }
+            let Ok(mut buf) = IriRefBuf::new(s.clone()) else { continue };
+            buf.resolve(&base).unwrap();
+            // `%2E` is no dot segment to resolution, so decode first.
+            let mut decoded = IriRefBuf::new(normalized(&s)).unwrap();
+            decoded.resolve(&base).unwrap();
+            if !s.contains('%') {
+                assert!(eq(&s, buf.as_str()), "`{s}` should equal its resolution `{}`", buf.as_str());
+            }
+            assert_eq!(decoded.as_str(), normalized(&s), "`{s}`");
+        }
     }
 
     /// Normalizing a reference never changes what it resolves to.
     ///
-    /// Left out: bases whose merged path can climb out of a rootless path
-    /// (`a/..` against `foo:`), and `%2E%2E` segments climbing past one. There
-    /// resolution removes dot segments as the original RFC 3986 §5.2.4 does,
-    /// while the normal form follows Errata 4547, so the two disagree.
+    /// Left out: a rootless base with no `/` (`foo:`). Merging with it leaves
+    /// the reference's path as it is, and §5.2.4 gives `a/..` a leading `/`
+    /// there but `./` none. Equality cannot depend on the base, so `a/..` and
+    /// `./` stay equal, as they are against every other base.
     #[test]
     fn normalizing_a_reference_keeps_its_resolution() {
         use crate::types::{IriBuf, IriRefBuf};
@@ -498,6 +562,7 @@ mod tests {
             "#f",
             ".#f",
             "%2E",
+            "%2E%2E/a",
             "a/./b/../c",
             "//h/.",
             "//h",

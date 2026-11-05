@@ -111,7 +111,7 @@ assert_eq!(term, Vocab::Name);
 
 ## References and resolution
 
-`IriRef` / `IriRefBuf` cover absolute *and* relative references. A strict implementation of the [RFC 3986 §5 reference resolution algorithm](https://tools.ietf.org/html/rfc3986#section-5) with [Errata 4547](https://www.rfc-editor.org/errata/eid4547):
+`IriRef` / `IriRefBuf` cover absolute *and* relative references. A strict implementation of the [RFC 3986 §5 reference resolution algorithm](https://tools.ietf.org/html/rfc3986#section-5), with its §5.4 results (`../../../g` against `http://a/b/c/d;p?q` is `http://a/g`):
 
 ```rust
 use iri_rs::{Iri, IriRefBuf};
@@ -130,7 +130,7 @@ Equality, hashing and ordering compare the RFC 3986/3987 §6.2.2 syntax-based no
 
 - **Case** — the scheme and host are case-insensitive: `HTTP://Example.COM/` ≡ `http://example.com/`. The user info, path, query and fragment keep their case.
 - **Percent encoding** — escaped unreserved characters decode and hex digits are case-insensitive, in every component: `http://exa%6dple.org/%7e` ≡ `http://example.org/~`, `%2f` ≡ `%2F`.
-- **Dot segments** — `a/../a/./b/../b/c` ≡ `a/b/c`. Escapes decode first, so `/a/%2E%2E/b` ≡ `/b`.
+- **Dot segments** — `a/../a/./b/../b/c` ≡ `a/b/c`. Escapes decode first, so `/a/%2E%2E/b` ≡ `/b`. Under a scheme or an authority they go as resolution removes them, so an IRI equals what it resolves to: `foo:a/../../b` ≡ `foo:/b`. A relative-path reference keeps a `..` with nothing to climb over, since it still climbs the base it is resolved against: `a/../../b` ≡ `../b`, not `b`.
 - **Protocol-agnostic** — `http://example.org` and `http://example.org:80` are **not** equal. Equality knows nothing about scheme defaults.
 - **Every `/` counts** — `/foo/bar` and `/foo/bar/` are **not** equal.
 

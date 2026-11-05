@@ -278,6 +278,16 @@ fn write_path_without_dot_segments_to(mut input: &str, output: &mut String, outp
     }
 }
 
+/// RFC 3986 §5.2.4 `remove_dot_segments` over a whole path, exactly as
+/// resolution applies it to the path of a reference with a scheme or an
+/// authority. The normal form of such a reference goes through here, so that
+/// two references compare equal only when they resolve alike.
+pub(crate) fn remove_dot_segments(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    write_path_without_dot_segments_to(path, &mut out, 0, false);
+    out
+}
+
 fn remove_last_segment(output: &mut String, output_path_start: usize) {
     let last = memrchr(b'/', &output.as_bytes()[output_path_start..]).unwrap_or(0);
     output.truncate(output_path_start + last);

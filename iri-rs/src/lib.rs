@@ -133,11 +133,9 @@
 //! assert_eq!(iri_ref, "http://a/b/c/y");
 //! ```
 //!
-//! This crate implements
-//! [Errata 4547](https://www.rfc-editor.org/errata/eid4547) about the
-//! abnormal use of dot segments in relative paths.
-//! This means that for instance, the path `a/b/../../../` is normalized into
-//! `../`.
+//! Resolution follows RFC 3986 §5.2.4 and its §5.4 examples: a `..` with
+//! nothing left to climb over is dropped, so `../../../g` against
+//! `http://a/b/c/d;p?q` is `http://a/g`.
 //!
 //! ### IRI comparison
 //!
@@ -160,11 +158,12 @@
 //! Paths are normalized during comparison by removing dot segments (`.` and `..`).
 //! This means for instance that the paths `a/b/c` and `a/../a/./b/../b/c` **are**
 //! equivalent.
-//! Note however that this crate implements
-//! [Errata 4547](https://www.rfc-editor.org/errata/eid4547) about the
-//! abnormal use of dot segments in relative paths.
-//! This means that for instance, the IRI `http:a/b/../../../` is equivalent to
-//! `http:../` and **not** `http:`.
+//! Under a scheme or an authority, dot segments are removed exactly as
+//! resolution removes them, so an IRI is equivalent to what it resolves to:
+//! `foo:a/../../b` is equivalent to `foo:/b`. A relative-path reference has
+//! not been resolved yet, and keeps a `..` with nothing to climb over, since
+//! it still climbs the base: `a/b/../../../` is equivalent to `../`, and
+//! **not** to the empty reference.
 //!
 //! #### Case
 //!
