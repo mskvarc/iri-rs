@@ -136,7 +136,7 @@ Equality, hashing and ordering compare the RFC 3986/3987 §6.2.2 syntax-based no
 
 Two values whose `as_str()` differs can still hash equal and compare `Equal` — keep that in mind when used as map keys. Ordering sorts component by component (scheme, then user info, host and port, then path, query and fragment), not by the raw string.
 
-`normalized()` returns that normal form, so `iri.normalized() == iri` holds and both hash alike (without the `bytewise` feature). `normalized_for_scheme()` also applies the §6.2.3 `http`/`https` defaults: it drops `:80`/`:443` and turns an empty path into `/`. Its result can therefore differ from the input under `==`.
+`normalized()` returns that normal form, so `iri.normalized() == iri` holds and both hash alike (without the `bytewise` feature). `normalized_for_scheme()` also applies the §6.2.3 `http`/`https` defaults: it drops `:80`/`:443` and turns an empty path into `/`, and drops an empty port (`a:`) for any scheme. Its result can therefore differ from the input under `==`.
 
 ```rust
 use iri_rs::IriBuf;

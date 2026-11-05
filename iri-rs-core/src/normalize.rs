@@ -243,9 +243,10 @@ impl<H: Hasher> Sink for HashSink<'_, H> {
 
 /// Writes the normal form of the IRI reference `iri` (see the module docs).
 ///
-/// With `scheme_defaults`, the RFC 3986 §6.2.3 scheme-based steps for `http`
-/// and `https` are applied too: the default port is dropped and an empty path
-/// under an authority becomes `/`. Equality and hashing never use them.
+/// With `scheme_defaults`, the RFC 3986 §6.2.3 scheme-based steps are applied
+/// too: an empty port is dropped for every scheme, and for `http` and `https`
+/// the default port is dropped and an empty path under an authority becomes
+/// `/`. Equality and hashing never use them.
 fn write_normalized<S: Sink>(iri: &str, p: Positions, scheme_defaults: bool, sink: &mut S) {
     let scheme = (p.scheme_end > 0).then(|| &iri[..p.scheme_end - 1]);
     if let Some(scheme) = scheme {
@@ -266,7 +267,7 @@ fn write_normalized<S: Sink>(iri: &str, p: Positions, scheme_defaults: bool, sin
             sink.put("@");
         }
         put_pct_normalized(sink, host, true);
-        if let Some(port) = port.filter(|&port| Some(port) != default_port) {
+        if let Some(port) = port.filter(|&port| !(scheme_defaults && port.is_empty()) && Some(port) != default_port) {
             sink.put(":");
             sink.put(port);
         }
@@ -372,10 +373,11 @@ macro_rules! normalized_methods {
             }
 
             /// Returns [`normalized`](Self::normalized) with the RFC 3986
-            /// §6.2.3 scheme-based steps for `http` and `https` applied on top:
-            /// the default port (`:80`, `:443`) is dropped, and an empty path
-            /// under an authority becomes `/`. Other schemes are left as
-            /// `normalized` leaves them.
+            /// §6.2.3 scheme-based steps applied on top: an empty port (`a:`)
+            /// is dropped, and for `http` and `https` so is the default port
+            /// (`:80`, `:443`), and an empty path under an authority becomes
+            /// `/`. Other schemes keep everything else as `normalized` leaves
+            /// it.
             ///
             /// Equality is protocol agnostic, so unlike `normalized` the
             /// result can differ from `self`: `http://a:80` and `http://a/`
@@ -733,6 +735,13 @@ mod tests {
             ("ftp://a", "ftp://a"),
             ("http:p", "http:p"),
             ("//a:80", "//a:80"),
+            // §6.2.3: an empty port goes too, whatever the scheme.
+            ("http://a:/", "http://a/"),
+            ("http://a:", "http://a/"),
+            ("ftp://a:/x", "ftp://a/x"),
+            ("http://u:p@a:/", "http://u:p@a/"),
+            ("http://[::1]:/", "http://[::1]/"),
+            ("//a:/", "//a/"),
         ] {
             assert_eq!(normalized_for_scheme(input), expected, "`{input}`");
         }
