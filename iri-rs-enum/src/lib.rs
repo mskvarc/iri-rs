@@ -35,16 +35,9 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::collections::HashMap;
 use syn::{
-    Attribute,
-    Data,
-    DeriveInput,
-    Fields,
-    LitStr,
-    Meta,
-    Token,
+    Attribute, Data, DeriveInput, Fields, LitStr, Meta, Token,
     parse::{Parse, ParseStream},
-    parse_macro_input,
-    parse2,
+    parse_macro_input, parse2,
 };
 
 macro_rules! bail {

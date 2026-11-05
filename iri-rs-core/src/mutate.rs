@@ -104,65 +104,49 @@ impl Default for UriRefBuf {
 }
 
 impl IriBuf {
+    /// Applies `f` to the value as a reference. The reference setters leave
+    /// their value untouched on error, so it is put back either way.
+    fn edit(&mut self, f: impl FnOnce(&mut IriRefBuf) -> Result<(), IriParseError>) -> Result<(), IriParseError> {
+        let p = self.positions();
+        let mut r = IriRefBuf::from_raw_parts(std::mem::take(&mut self.0.iri), p);
+        let result = f(&mut r);
+        *self = Iri::from_raw_parts(r.iri, r.positions);
+        result
+    }
+
     /// # Errors
     ///
     /// Returns an error when the new scheme is not a valid scheme, or when removing it would leave a reference that cannot be reparsed. The value is left untouched.
     pub fn set_scheme(&mut self, scheme: &str) -> Result<(), IriParseError> {
-        validate_scheme(scheme)?;
-        let p = self.positions();
-        let iri = std::mem::take(&mut self.0.iri);
-        let mut r = IriRefBuf::from_raw_parts(iri, p);
-        rebuild(&mut r, &Edit::Scheme(Some(scheme.to_string())), true)?;
-        *self = Iri::from_raw_parts(r.iri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_scheme(Some(scheme)))
     }
 
     /// # Errors
     ///
     /// Returns an error when the new authority is not valid in that position. The value is left untouched.
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
-        let p = self.positions();
-        let iri = std::mem::take(&mut self.0.iri);
-        let mut r = IriRefBuf::from_raw_parts(iri, p);
-        r.set_authority(authority)?;
-        *self = Iri::from_raw_parts(r.iri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_authority(authority))
     }
 
     /// # Errors
     ///
     /// Returns an error when the new path is not valid in that position. The value is left untouched.
     pub fn set_path(&mut self, path: &str) -> Result<(), IriParseError> {
-        let p = self.positions();
-        let iri = std::mem::take(&mut self.0.iri);
-        let mut r = IriRefBuf::from_raw_parts(iri, p);
-        r.set_path(path)?;
-        *self = Iri::from_raw_parts(r.iri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_path(path))
     }
 
     /// # Errors
     ///
     /// Returns an error when the new query is not valid in that position. The value is left untouched.
     pub fn set_query(&mut self, query: Option<&str>) -> Result<(), IriParseError> {
-        let p = self.positions();
-        let iri = std::mem::take(&mut self.0.iri);
-        let mut r = IriRefBuf::from_raw_parts(iri, p);
-        r.set_query(query)?;
-        *self = Iri::from_raw_parts(r.iri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_query(query))
     }
 
     /// # Errors
     ///
     /// Returns an error when the new fragment is not valid in that position. The value is left untouched.
     pub fn set_fragment(&mut self, fragment: Option<&str>) -> Result<(), IriParseError> {
-        let p = self.positions();
-        let iri = std::mem::take(&mut self.0.iri);
-        let mut r = IriRefBuf::from_raw_parts(iri, p);
-        r.set_fragment(fragment)?;
-        *self = Iri::from_raw_parts(r.iri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_fragment(fragment))
     }
 }
 
@@ -244,60 +228,45 @@ impl UriRefBuf {
 }
 
 impl UriBuf {
+    /// Applies `f` to the value as a reference. The reference setters leave
+    /// their value untouched on error, so it is put back either way.
+    fn edit(&mut self, f: impl FnOnce(&mut UriRefBuf) -> Result<(), IriParseError>) -> Result<(), IriParseError> {
+        let p = self.positions();
+        let mut r = UriRefBuf::from_raw_parts(std::mem::take(&mut self.0.uri), p);
+        let result = f(&mut r);
+        *self = Uri::from_raw_parts(r.uri, r.positions);
+        result
+    }
+
     /// # Errors
     ///
     /// Returns an error when the new scheme is not a valid scheme, or when removing it would leave a reference that cannot be reparsed. The value is left untouched.
     pub fn set_scheme(&mut self, scheme: &str) -> Result<(), IriParseError> {
-        let p = self.positions();
-        let uri = std::mem::take(&mut self.0.uri);
-        let mut r = UriRefBuf::from_raw_parts(uri, p);
-        r.set_scheme(Some(scheme))?;
-        *self = Uri::from_raw_parts(r.uri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_scheme(Some(scheme)))
     }
     /// # Errors
     ///
     /// Returns an error when the new authority is not valid in that position. The value is left untouched.
     pub fn set_authority(&mut self, authority: Option<&str>) -> Result<(), IriParseError> {
-        let p = self.positions();
-        let uri = std::mem::take(&mut self.0.uri);
-        let mut r = UriRefBuf::from_raw_parts(uri, p);
-        r.set_authority(authority)?;
-        *self = Uri::from_raw_parts(r.uri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_authority(authority))
     }
     /// # Errors
     ///
     /// Returns an error when the new path is not valid in that position. The value is left untouched.
     pub fn set_path(&mut self, path: &str) -> Result<(), IriParseError> {
-        let p = self.positions();
-        let uri = std::mem::take(&mut self.0.uri);
-        let mut r = UriRefBuf::from_raw_parts(uri, p);
-        r.set_path(path)?;
-        *self = Uri::from_raw_parts(r.uri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_path(path))
     }
     /// # Errors
     ///
     /// Returns an error when the new query is not valid in that position. The value is left untouched.
     pub fn set_query(&mut self, query: Option<&str>) -> Result<(), IriParseError> {
-        let p = self.positions();
-        let uri = std::mem::take(&mut self.0.uri);
-        let mut r = UriRefBuf::from_raw_parts(uri, p);
-        r.set_query(query)?;
-        *self = Uri::from_raw_parts(r.uri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_query(query))
     }
     /// # Errors
     ///
     /// Returns an error when the new fragment is not valid in that position. The value is left untouched.
     pub fn set_fragment(&mut self, fragment: Option<&str>) -> Result<(), IriParseError> {
-        let p = self.positions();
-        let uri = std::mem::take(&mut self.0.uri);
-        let mut r = UriRefBuf::from_raw_parts(uri, p);
-        r.set_fragment(fragment)?;
-        *self = Uri::from_raw_parts(r.uri, r.positions);
-        Ok(())
+        self.edit(|r| r.set_fragment(fragment))
     }
 }
 
@@ -385,6 +354,28 @@ mod tests {
 
     fn iri_ref(s: &str) -> IriRefBuf {
         IriRef::parse(s.to_owned()).unwrap()
+    }
+
+    /// A setter that fails leaves the value as it was, as its doc promises.
+    #[test]
+    fn failed_setters_leave_absolute_buffers_untouched() {
+        let mut iri = IriBuf::new("http://a/b?q#f".to_owned()).unwrap();
+        assert!(iri.set_scheme("1x").is_err());
+        assert!(iri.set_authority(Some("a b")).is_err());
+        assert!(iri.set_path("a b").is_err());
+        assert!(iri.set_query(Some("a b")).is_err());
+        assert!(iri.set_fragment(Some("a b")).is_err());
+        assert_eq!(iri.as_str(), "http://a/b?q#f");
+        assert_eq!(iri.path(), "/b");
+
+        let mut uri = UriBuf::new("http://a/b?q#f".to_owned()).unwrap();
+        assert!(uri.set_scheme("1x").is_err());
+        assert!(uri.set_authority(Some("a b")).is_err());
+        assert!(uri.set_path("é").is_err());
+        assert!(uri.set_query(Some("a b")).is_err());
+        assert!(uri.set_fragment(Some("a b")).is_err());
+        assert_eq!(uri.as_str(), "http://a/b?q#f");
+        assert_eq!(uri.path(), "/b");
     }
 
     /// Removing a scheme can leave the first path segment holding a `:`, which
