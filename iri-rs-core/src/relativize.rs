@@ -1,7 +1,8 @@
 //! Relativization — inverse of [`crate::resolve::resolve`].
 //!
 //! Given an absolute base `B` and absolute target `T`, produce a reference `R`
-//! such that `resolve(B, R) == T` (after RFC 3986 §5.2 dot-segment removal).
+//! such that `resolve(B, R) == resolve(B, T)`: `T` itself, after the RFC 3986
+//! §5.2.2 dot-segment removal resolution applies to it.
 //!
 //! Strategy mirrors the reverse of RFC 3986 §5.2:
 //!   * different scheme → emit absolute target
@@ -12,10 +13,20 @@
 //!   * same path, target has no query → restate the last segment
 //!   * same path+query, different fragment → emit `#frag`
 //!   * identical → empty string
+//!
+//! Those rules assume a base whose path holds no dot segments and resolves as
+//! written; a rootless base path climbed by `..`, for one, resolves to an
+//! absolute path (§5.2.4). So a reference built from a shared authority is
+//! resolved once to check it, and replaced by the target minus its scheme,
+//! which always resolves back, when it does not.
 
 use memchr::{memchr, memrchr};
 
-use crate::parse::Positions;
+use crate::{
+    components::path_is_normalized,
+    parse::{Positions, find_iri_ref_positions},
+    resolve::resolve,
+};
 
 /// Write a reference for `target` relative to `base` into `output`.
 pub fn relativize(base: (&str, Positions), target: (&str, Positions), output: &mut String) {
@@ -46,6 +57,37 @@ pub fn relativize(base: (&str, Positions), target: (&str, Positions), output: &m
         output.push_str(&tgt_s[tgt_p.scheme_end..]);
         return;
     }
+
+    let start = output.len();
+    write_within_authority(base, target, output);
+    if !resolves_to_target(base, target, &output[start..]) {
+        // With the scheme, base and target share everything a reference could
+        // omit. A network-path or absolute reference takes nothing from the
+        // base but its scheme, and resolution removes the same dot segments
+        // from it as from the target.
+        output.truncate(start);
+        output.push_str(if tgt_has_authority { &tgt_s[tgt_p.scheme_end..] } else { tgt_s });
+    }
+}
+
+/// Whether `reference` resolves against `base` to what `target` resolves to.
+fn resolves_to_target(base: (&str, Positions), target: (&str, Positions), reference: &str) -> bool {
+    let mut got = String::with_capacity(base.0.len() + reference.len());
+    resolve(base, (reference, find_iri_ref_positions(reference)), &mut got);
+    let (tgt_s, tgt_p) = target;
+    if path_is_normalized(&tgt_s[tgt_p.authority_end..tgt_p.path_end]) {
+        // Without dot segments the target resolves to itself.
+        return got == tgt_s;
+    }
+    let mut want = String::with_capacity(tgt_s.len());
+    resolve(base, target, &mut want);
+    got == want
+}
+
+/// The reference for a target sharing the base's scheme and authority.
+fn write_within_authority(base: (&str, Positions), target: (&str, Positions), output: &mut String) {
+    let (base_s, base_p) = base;
+    let (tgt_s, tgt_p) = target;
 
     let base_path = &base_s[base_p.authority_end..base_p.path_end];
     let tgt_path = &tgt_s[tgt_p.authority_end..tgt_p.path_end];
@@ -79,6 +121,7 @@ pub fn relativize(base: (&str, Positions), target: (&str, Positions), output: &m
             // when its path is non-empty, so dropping a query the base carries
             // means restating the path the two already share.
             if !write_same_path(tgt_path, output) {
+                // Rejected by the round-trip check, which falls back.
                 output.push_str(tgt_s);
                 return;
             }
@@ -159,8 +202,10 @@ fn write_relative_path(base_path: &str, tgt_path: &str, output: &mut String) {
     }
     if !tgt_rest.is_empty() {
         if up == 0 {
+            // An empty first segment would make the path absolute, and one
+            // holding a `:` would read as a scheme (RFC 3986 §4.2).
             let first = tgt_rest.split('/').next().unwrap_or("");
-            if first.contains(':') {
+            if first.is_empty() || first.contains(':') {
                 output.push_str("./");
             }
         }
@@ -381,6 +426,99 @@ mod tests {
         // possible and the target is returned verbatim.
         assert_eq!(rel("http://a/b/.?q", "http://a/b/."), "http://a/b/.");
         assert_eq!(rel("http://a/b/..?q", "http://a/b/.."), "http://a/b/..");
+    }
+
+    /// Shapes the path rules alone get wrong, and what replaces them.
+    #[test]
+    fn falls_back_where_a_shorter_reference_would_resolve_elsewhere() {
+        for (base, target, expected) in [
+            // `//x` would read as an authority.
+            ("http://h", "http://h//x", "//h//x"),
+            // An empty path resolves to the base's path.
+            ("http://h/a", "http://h", "//h"),
+            ("http://h/a", "http://h?q", "//h?q"),
+            // `..` climbing a rootless path resolves to an absolute one.
+            ("foo:a/b", "foo:c", "foo:c"),
+            // The base's dot segments are not removed by resolving against it.
+            ("http://h/a/./b", "http://h/a/c", "//h/a/c"),
+        ] {
+            assert_eq!(rel(base, target), expected, "base `{base}` target `{target}`");
+            roundtrip(base, target);
+        }
+    }
+
+    /// An empty segment after the shared directory keeps a `./`, or the rest
+    /// would be an absolute path.
+    #[test]
+    fn empty_segment_after_the_shared_directory_keeps_dot_slash() {
+        assert_eq!(rel("http://h/a/b", "http://h/a//x"), ".//x");
+        roundtrip("http://h/a/b", "http://h/a//x");
+        assert_eq!(rel("http://h/a/b/c", "http://h/a//x"), "..//x");
+        roundtrip("http://h/a/b/c", "http://h/a//x");
+    }
+
+    /// Random IRIs over a small alphabet of the shapes that are easy to get
+    /// wrong: empty segments, dot segments, `:` in a segment, rootless paths,
+    /// empty and missing components.
+    fn random_iri(next: &mut impl FnMut() -> usize) -> String {
+        const SCHEMES: &[&str] = &["http:", "foo:"];
+        const AUTHORITIES: &[&str] = &["", "//h", "//h", "//", "//g"];
+        const SEGMENTS: &[&str] = &["", "a", "a", "b", ".", "..", "a:b", "%2E"];
+        let mut s = String::from(SCHEMES[next() % SCHEMES.len()]);
+        let authority = AUTHORITIES[next() % AUTHORITIES.len()];
+        s.push_str(authority);
+        let segments = next() % 5;
+        let rooted = !authority.is_empty() || next() % 2 == 0;
+        for i in 0..segments {
+            if i > 0 || rooted {
+                s.push('/');
+            }
+            s.push_str(SEGMENTS[next() % SEGMENTS.len()]);
+        }
+        if next() % 3 == 0 {
+            s.push_str(["?", "?q", "?r"][next() % 3]);
+        }
+        if next() % 3 == 0 {
+            s.push_str(["#", "#f"][next() % 2]);
+        }
+        s
+    }
+
+    /// The reference resolves back to whatever the target itself resolves
+    /// to against the base, which is the target with its dot segments removed.
+    #[test]
+    fn round_trips_on_random_pairs() {
+        use crate::parse::find_iri_ref_positions;
+        let mut state: u32 = 0x5eed_1234;
+        let mut next = || {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (state >> 8) as usize
+        };
+        let resolve_against = |base: &str, r: &str| {
+            let mut out = String::new();
+            resolve((base, find_iri_positions(base)), (r, find_iri_ref_positions(r)), &mut out);
+            out
+        };
+        let mut failures = Vec::new();
+        for _ in 0..50_000 {
+            let (base, target) = (random_iri(&mut next), random_iri(&mut next));
+            if crate::validate::validate_iri_ref(&base, find_iri_ref_positions(&base), true).is_err()
+                || crate::validate::validate_iri_ref(&target, find_iri_ref_positions(&target), true).is_err()
+            {
+                continue;
+            }
+            let r = rel(&base, &target);
+            let (got, want) = (resolve_against(&base, &r), resolve_against(&base, &target));
+            if got != want {
+                failures.push(format!("base={base:?} target={target:?} rel={r:?} -> {got:?}, want {want:?}"));
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "{} failures, e.g.\n{}",
+            failures.len(),
+            failures[..failures.len().min(40)].join("\n")
+        );
     }
 
     #[test]

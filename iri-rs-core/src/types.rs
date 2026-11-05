@@ -403,7 +403,8 @@ impl<T: Deref<Target = str>> Iri<T> {
     }
 
     /// Make `self` relative to `base`, returning an `IriRef<String>` `R`
-    /// such that resolving `R` against `base` reconstructs `self`.
+    /// such that resolving `R` against `base` reconstructs `self`, minus any
+    /// dot segments in its path, which resolution removes.
     pub fn relative_to<U: Deref<Target = str>>(&self, base: &Iri<U>) -> IriRef<String> {
         let mut out = String::new();
         relativize((&base.0.iri, base.0.positions), (&self.0.iri, self.0.positions), &mut out);
@@ -727,7 +728,8 @@ impl<T: Deref<Target = str>> Uri<T> {
     }
 
     /// Make `self` relative to `base`, returning a `UriRef<String>` `R`
-    /// such that resolving `R` against `base` reconstructs `self`.
+    /// such that resolving `R` against `base` reconstructs `self`, minus any
+    /// dot segments in its path, which resolution removes.
     pub fn relative_to<U: Deref<Target = str>>(&self, base: &Uri<U>) -> UriRef<String> {
         let mut out = String::new();
         relativize((&base.0.uri, base.0.positions), (&self.0.uri, self.0.positions), &mut out);
