@@ -167,15 +167,18 @@ pub(crate) fn first_segment_has_colon(path: &str) -> bool {
     memchr::memchr(b':', first_segment.as_bytes()).is_some()
 }
 
-/// The dot segment that has to precede `path` when it is written after the
-/// given scheme and authority, so that it reads back as the same path.
+/// What has to precede `path` when it is written after the given scheme and
+/// authority, so that it reads back as a path.
 ///
-/// Both cases are recoverable with a dot segment, which denotes the same path
-/// but cannot be misread on the way back in.
+/// Without an authority the guard is a dot segment, which denotes the same
+/// path but cannot be misread on the way back in. Under an authority a path
+/// must be empty or start with `/` (RFC 3986 §3.3), so a rootless path gets a
+/// leading `/`, the path it merges to under §5.2.3. Otherwise `http://a` with
+/// path `b` would read back as host `ab`.
 #[inline]
 pub(crate) fn path_guard(has_scheme: bool, has_authority: bool, path: &str) -> &'static str {
     if has_authority {
-        ""
+        if path.is_empty() || path.starts_with('/') { "" } else { "/" }
     } else if path.starts_with("//") {
         // RFC 3986 §3.3: with no authority, a path may not begin with `//`.
         "/."

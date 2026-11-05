@@ -356,6 +356,31 @@ mod tests {
         IriRef::parse(s.to_owned()).unwrap()
     }
 
+    /// Under an authority a path must be empty or start with `/` (RFC 3986
+    /// §3.3); a rootless one would run into the host.
+    #[test]
+    fn a_rootless_path_under_an_authority_gets_a_leading_slash() {
+        let mut buf = IriBuf::new("http://a".to_owned()).unwrap();
+        buf.set_path("b").unwrap();
+        assert_eq!(buf.as_str(), "http://a/b");
+        assert_eq!(buf.authority(), Some("a"));
+        assert_eq!(buf.path(), "/b");
+
+        let mut buf = iri_ref("foo:bar?q");
+        buf.set_authority(Some("h")).unwrap();
+        assert_eq!(buf.as_str(), "foo://h/bar?q");
+        assert_eq!(buf.authority(), Some("h"));
+        assert_eq!(buf.path(), "/bar");
+
+        let mut buf = iri_ref("//h");
+        buf.set_path("").unwrap();
+        assert_eq!(buf.as_str(), "//h");
+
+        let mut buf = UriBuf::new("http://a".to_owned()).unwrap();
+        buf.set_path("b").unwrap();
+        assert_eq!(buf.as_str(), "http://a/b");
+    }
+
     /// A setter that fails leaves the value as it was, as its doc promises.
     #[test]
     fn failed_setters_leave_absolute_buffers_untouched() {
