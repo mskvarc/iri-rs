@@ -2,10 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.0] - 2026-11-05
+
+### 🐛 Bug Fixes
+- Match enum variants by iri equivalence and fix stale docs
+- Drop an empty port in normalized_for_scheme
+- Remove dot segments under a scheme as resolution does
+- Make relative_to always resolve back to its target
+- Keep ./ when normalization empties a relative path
+- Implement borrow<str> only under bytewise ⚠️ **BREAKING**
+- Give a rootless path a leading slash under an authority
+- Keep the value when a setter on iribuf or uribuf fails
+- Order iris by their normal form
+
+### 🚀 Features
+- Add normalized() and normalized_for_scheme()
+
+### 🧹 Chores
+- Bump version
+- Update to pct 4.1.0, bump msrv to 1.85.1
+
 ## [v3.4.1] - 2026-08-04
 
 ### 🐛 Bug Fixes
 - Bump all versions
+
+### 🧹 Chores
+- Update changelog
 
 ## [v3.4.0] - 2026-08-04
 
