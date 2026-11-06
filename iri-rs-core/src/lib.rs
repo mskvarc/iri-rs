@@ -2,6 +2,7 @@
 
 pub mod components;
 pub mod error;
+pub mod mapping;
 pub mod mutate;
 pub mod normalize;
 pub mod parse;

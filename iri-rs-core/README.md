@@ -39,6 +39,7 @@ cargo add iri-rs-core
 
 | Flag        | Default | Enables                                                            |
 | ----------- | :-----: | ------------------------------------------------------------------ |
+| `idna`      |         | `to_uri_with_idna_host()`: IRI-to-URI mapping with a ToASCII host  |
 | `serde`     |         | `Serialize` / `Deserialize` for borrowed and owned types           |
 
 ## What's inside
@@ -49,6 +50,7 @@ cargo add iri-rs-core
 - Strict RFC 3986 §5 reference resolution, matching its §5.4 examples.
 - `==`, `Hash` and `Ord` by RFC 3987 §5.3.1 simple string comparison, with `Borrow<str>` for lookups by `&str`.
 - RFC 3986/3987 §6.2.2 normalization: `equivalent()` compares two values modulo the normal form without building it, and `normalized()` returns the normal form (protocol-agnostic, percent-decoding-aware); `normalized_for_scheme()` adds the §6.2.3 `http`/`https` defaults. See the [root README](../README.md#comparison) for which to use when.
+- RFC 3987 §3.1 IRI-to-URI mapping: `to_uri()` and `to_uri_ref()` percent-encode the UTF-8 of every non-ASCII character, which aligns an escape with the character it encodes (§5.3.2.3); with `idna`, `to_uri_with_idna_host()` maps a non-ASCII host by UTS 46 ToASCII instead.
 
 ## Performance notes
 

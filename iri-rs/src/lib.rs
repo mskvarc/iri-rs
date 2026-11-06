@@ -35,6 +35,9 @@
 //!   - simple string comparison through `==`, `Hash` and `Ord`, and
 //!     comparison modulo normalization through `equivalent()`;
 //!   - URI/IRI-reference resolution;
+//!   - RFC 3987 §3.1 IRI-to-URI mapping through `to_uri()`, and with a
+//!     UTS 46 `ToASCII` host through `to_uri_with_idna_host()` (by enabling the
+//!     `idna` feature);
 //!   - static URI/IRI parsing using the `iri!`, `uri!`, `iri_ref!` and
 //!     `uri_ref!` macros (by enabling the `static` feature);
 //!   - `#[derive(IriEnum)]` for vocabulary enums (by enabling the `enum`

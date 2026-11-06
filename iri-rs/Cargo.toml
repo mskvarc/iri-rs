@@ -18,6 +18,7 @@ all-features = true
 default = []
 static = ["dep:iri-rs-static"]
 enum = ["dep:iri-rs-enum"]
+idna = ["iri-rs-core/idna"]
 serde = ["iri-rs-core/serde"]
 
 [dependencies]

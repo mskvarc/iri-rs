@@ -236,6 +236,11 @@ macro_rules! normalized_methods {
             /// not equal. Neither form is built; the components are compared
             /// as they are read, and nothing is allocated unless a component
             /// holds an escape, uppercase host letters or dot segments.
+            ///
+            /// Only escaped unreserved ASCII decodes, so `http://a/%C3%A9` is
+            /// not equivalent to the IRI `http://a/é`. RFC 3987 §5.3.2.3
+            /// aligns the two by comparing the URIs the IRIs map to, which
+            /// `Iri::to_uri` and `IriRef::to_uri_ref` return.
             #[must_use]
             pub fn equivalent<U: Deref<Target = str>>(&self, other: &$ty<U>) -> bool {
                 iri_eq(

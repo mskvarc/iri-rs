@@ -13,9 +13,11 @@ categories.workspace = true
 
 [features]
 default = []
+idna = ["dep:idna"]
 serde = ["dep:serde"]
 
 [dependencies]
+idna = { version = "1.1.0", optional = true }
 memchr = "2.8.3"
 pct = "4.1.0"
 serde = { version = "1.0.229", optional = true }

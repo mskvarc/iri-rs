@@ -70,6 +70,7 @@ cargo add iri-rs
 | ----------- | :-----: | ------------------------------------------------------------------------- |
 | `static`    |         | Compile-time `iri!`, `uri!`, `iri_ref!`, `uri_ref!` macros                |
 | `enum`      |         | `#[derive(IriEnum)]` for vocabulary enums                                 |
+| `idna`      |         | `to_uri_with_idna_host()`: IRI-to-URI mapping with a UTS 46 ToASCII host  |
 | `serde`     |         | `Serialize` / `Deserialize` for borrowed and owned types                  |
 
 ## Compile-time IRIs
@@ -128,6 +129,7 @@ assert_eq!(r, "http://a/b/c/y");
 - **Dot segments** — `a/../a/./b/../b/c` ≡ `a/b/c`. Escapes decode first, so `/a/%2E%2E/b` ≡ `/b`. Under a scheme or an authority they go as resolution removes them, so an IRI is equivalent to what it resolves to: `foo:a/../../b` ≡ `foo:/b`. A relative-path reference keeps a `..` with nothing to climb over, since it still climbs the base it is resolved against: `a/../../b` ≡ `../b`, not `b`.
 - **Protocol-agnostic** — `http://example.org` and `http://example.org:80` are **not** equivalent. `equivalent()` knows nothing about scheme defaults.
 - **Every `/` counts** — `/foo/bar` and `/foo/bar/` are **not** equivalent.
+- **Characters stay characters** — only escaped unreserved ASCII decodes, so `http://a/%C3%A9` and `http://a/é` are **not** equivalent. RFC 3987 §5.3.2.3 aligns them by mapping both IRIs to URIs first (see [IRI to URI](#iri-to-uri)): `a.to_uri().equivalent(&b.to_uri())`.
 
 `normalized()` returns that normal form: `a.equivalent(&b)` holds exactly when `a.normalized() == b.normalized()`. To key a map or set by normalized identity, normalize each IRI once and key by the result. `normalized_for_scheme()` also applies the §6.2.3 `http`/`https` defaults: it drops `:80`/`:443` and turns an empty path into `/`, and drops an empty port (`a:`) for any scheme. Its result therefore need not be equivalent to the input.
 
@@ -141,6 +143,21 @@ assert_eq!(iri.normalized_for_scheme().as_str(), "http://example.com/a/~c?Q=1");
 let plain = IriBuf::new("http://example.com:80/a/~c?Q=1")?;
 assert!(iri != plain);
 assert!(iri.equivalent(&plain));
+```
+
+### IRI to URI
+
+`to_uri()` (`to_uri_ref()` on a reference) is the RFC 3987 §3.1 mapping: each non-ASCII character becomes the percent-encoded octets of its UTF-8 form, in uppercase hex, and everything else, escapes included, is kept. It borrows an IRI that is already ASCII. The host is percent-encoded like every other component.
+
+§3.1 also allows ToASCII for a host known to be a DNS name. With the `idna` feature, `to_uri_with_idna_host()` maps a non-ASCII reg-name host, written or percent-encoded, by UTS 46 ToASCII, and percent-encodes one ToASCII refuses. Whether a host is a DNS name is the caller's to know, so it is a method of its own: enabling the feature never changes what `to_uri()` returns.
+
+```rust
+use iri_rs::Iri;
+
+let iri = Iri::parse("https://Bücher.example/café")?;
+assert_eq!(iri.to_uri().as_str(), "https://B%C3%BCcher.example/caf%C3%A9");
+// With the `idna` feature:
+// assert_eq!(iri.to_uri_with_idna_host().as_str(), "https://xn--bcher-kva.example/caf%C3%A9");
 ```
 
 ### Which comparison to use
