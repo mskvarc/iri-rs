@@ -2,159 +2,167 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v4.0.0] - 2026-11-06
+
+### 🚀 Features
+- compare iris as strings and drop the bytewise feature ⚠️ **BREAKING**
+
+### 🧹 Chores
+- bump version
+
 ## [v3.5.0] - 2026-11-05
 
 ### 🐛 Bug Fixes
-- Match enum variants by iri equivalence and fix stale docs
-- Drop an empty port in normalized_for_scheme
-- Remove dot segments under a scheme as resolution does
-- Make relative_to always resolve back to its target
-- Keep ./ when normalization empties a relative path
-- Implement borrow<str> only under bytewise ⚠️ **BREAKING**
-- Give a rootless path a leading slash under an authority
-- Keep the value when a setter on iribuf or uribuf fails
-- Order iris by their normal form
+- match enum variants by iri equivalence and fix stale docs
+- drop an empty port in normalized_for_scheme
+- remove dot segments under a scheme as resolution does
+- make relative_to always resolve back to its target
+- keep ./ when normalization empties a relative path
+- implement borrow<str> only under bytewise ⚠️ **BREAKING**
+- give a rootless path a leading slash under an authority
+- keep the value when a setter on iribuf or uribuf fails
+- order iris by their normal form
 
 ### 🚀 Features
-- Add normalized() and normalized_for_scheme()
+- add normalized() and normalized_for_scheme()
 
 ### 🧹 Chores
-- Bump version
-- Update to pct 4.1.0, bump msrv to 1.85.1
+- bump version
+- update to pct 4.1.0, bump msrv to 1.85.1
 
 ## [v3.4.1] - 2026-08-04
 
 ### 🐛 Bug Fixes
-- Bump all versions
+- bump all versions
 
 ### 🧹 Chores
-- Update changelog
+- update changelog
 
 ## [v3.4.0] - 2026-08-04
 
 ### 🐛 Bug Fixes
-- Clippy warnings
+- clippy warnings
 
 ### 📚 Documentation
-- Stop normalize_path linking to a private item
+- stop normalize_path linking to a private item
 
 ### 🔧 Refactor
-- Rename fast-hash feature to bytewise
+- rename fast-hash feature to bytewise
 
 ### 🧹 Chores
-- Changelog
+- changelog
 
 ## [v3.3.7] - 2026-07-26
 
 ### 🐛 Bug Fixes
-- Adopt upstream iref 4.0 correctness fixes
+- adopt upstream iref 4.0 correctness fixes
 
 ### 🧹 Chores
-- Changelog
+- changelog
 
 ## [v3.3.6] - 2026-07-26
 
 ### ⚡ Performance
-- Lower the cost of dot segment checks
+- lower the cost of dot segment checks
 
 ### 🐛 Bug Fixes
-- Clippy warnings
+- clippy warnings
 
 ### 🧹 Chores
-- Changelog
-- Update dependencies
+- changelog
+- update dependencies
 
 ## [v3.3.5] - 2026-07-26
 
 ### 🐛 Bug Fixes
-- Correctly handle dot segments
+- correctly handle dot segments
 
 ### 📚 Documentation
-- Update changelog
+- update changelog
 
 ### 🚀 Features
-- Unchecked constructors
-- Bring back relative functionality
+- unchecked constructors
+- bring back relative functionality
 
 ### 🧹 Chores
-- Changelog
-- Update changelog
-- Bump version
-- Bump version
-- Bump version
-- Update changelog
+- changelog
+- update changelog
+- bump version
+- bump version
+- bump version
+- update changelog
 
 ## [v3.3.2] - 2026-04-26
 
 ### 📚 Documentation
-- Update changelog
+- update changelog
 
 ### 🚀 Features
-- Automatically determine path for proc macros
+- automatically determine path for proc macros
 
 ### 🧹 Chores
-- Update manifests/metadata
-- Bump version
+- update manifests/metadata
+- bump version
 
 ## [v3.3.1] - 2026-04-23
 
 ### ⚡ Performance
-- Fast path for no dot
-- Add inline attributes
+- fast path for no dot
+- add inline attributes
 
 ### 📚 Documentation
-- Update changelog
+- update changelog
 
 ### 🔧 Refactor
-- Avoid cloning
-- Avoid to_string
-- Split validate_authority
+- avoid cloning
+- avoid to_string
+- split validate_authority
 
 ### 🧹 Chores
-- Bump version
+- bump version
 
 ## [v3.3.0] - 2026-04-23
 
 ### ⚡ Performance
-- Add no-op fast paths
+- add no-op fast paths
 
 ### 🎨 Style
-- Reformat code
-- Reformat code
+- reformat code
+- reformat code
 
 ### 🐛 Bug Fixes
-- Compiler warnings
+- compiler warnings
 
 ### 👷 CI
-- Remove
+- remove
 
 ### 📚 Documentation
-- Add changelog
-- Update readme files
+- add changelog
+- update readme files
 
 ### 🔧 Refactor
-- Drop unused features and dependencies
-- Use pct encoding library
-- Custom iri grammar implementation
-- Remove hashbrown
-- Markdown licenses
-- Repository shape
+- drop unused features and dependencies
+- use pct encoding library
+- custom iri grammar implementation
+- remove hashbrown
+- markdown licenses
+- repository shape
 
 ### 🚀 Features
-- Use rfc3986 normalization
-- Add iri rs enum
-- Deps and errors
-- Add benches
+- use rfc3986 normalization
+- add iri rs enum
+- deps and errors
+- add benches
 
 ### 🧪 Tests
-- Add new benchmarks
+- add new benchmarks
 
 ### 🧹 Chores
-- Add cliff configuration
-- Some cleanups
-- Rework static
-- New rustfmt configuration
-- Remove changelog
+- add cliff configuration
+- some cleanups
+- rework static
+- new rustfmt configuration
+- remove changelog
 
 ## [v3.2.2] - 2024-07-25
 
