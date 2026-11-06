@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v4.1.0] - 2026-11-06
+
+### 🚀 Features
+- map iris to uris as rfc 3987 section 3.1 defines
+
+### 🧹 Chores
+- bump version
+
 ## [v4.0.0] - 2026-11-06
 
 ### 🚀 Features
