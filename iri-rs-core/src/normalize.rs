@@ -1,10 +1,13 @@
 //! RFC 3986/3987 §6.2.2 syntax-based normalization: the normal form, and the
-//! streaming comparators and hash that agree with it.
+//! streaming comparison that agrees with it.
 //!
-//! The normal form is defined once, by `write_normalized`. `normalized()`
-//! writes it into a string and [`normalized_hash`] feeds it to the hasher, so
-//! the two cannot drift. [`iri_eq`] compares the same canonical components
-//! without building the whole form, and the tests hold it to `normalized()`.
+//! This is the RFC 3987 §5.3.2 rung of the comparison ladder. `==`, `Hash`
+//! and `Ord` on the IRI types are the §5.3.1 rung, Simple String Comparison,
+//! and never come through here. `equivalent()` and `normalized()` do.
+//!
+//! The normal form is defined once, by `write_normalized`, which `normalized()`
+//! runs. [`iri_eq`] compares the same canonical components without building the
+//! whole form, and the tests hold it to `normalized()`.
 //!
 //! Per component:
 //! * scheme: ASCII-lowercased;
@@ -26,7 +29,7 @@
 //! digits, `-` `.` `_` `~`) and uppercases the hex digits of every other
 //! escape. It runs before dot-segment removal, so `%2E%2E` is a `..` segment.
 
-use std::{borrow::Cow, cmp::Ordering, hash::Hasher, ops::Deref};
+use std::{borrow::Cow, ops::Deref};
 
 use pct::rfc3986::{Chunk, chunks};
 
@@ -37,7 +40,7 @@ use crate::{
     types::{Iri, IriRef, Uri, UriRef},
 };
 
-/// The components of an IRI reference, as equality and ordering see them.
+/// The components of an IRI reference, as the comparison sees them.
 struct Parts<'a> {
     scheme: Option<&'a str>,
     /// `Some("")` for an empty authority (`file:///`), `None` for none.
@@ -59,186 +62,58 @@ impl<'a> Parts<'a> {
     }
 }
 
-/// Whether two IRI references have the same normal form.
+/// Whether two IRI references have the same RFC 3986/3987 §6.2.2 normal form,
+/// compared component by component without building either form.
 #[must_use]
 pub fn iri_eq(a: &str, pa: Positions, b: &str, pb: Positions) -> bool {
-    iri_cmp(a, pa, b, pb) == Ordering::Equal
-}
-
-/// Orders IRI references by their normal form, component by component: the
-/// scheme, then the user info, host and port, then the path, query and
-/// fragment. A missing component sorts before a present one.
-///
-/// This is the single definition of equivalence: [`iri_eq`] is
-/// `iri_cmp(..) == Equal`, so ordering and equality cannot disagree.
-#[must_use]
-pub fn iri_cmp(a: &str, pa: Positions, b: &str, pb: Positions) -> Ordering {
     if a == b {
-        return Ordering::Equal;
+        return true;
     }
     let (x, y) = (Parts::of(a, pa), Parts::of(b, pb));
-    opt_cmp(x.scheme, y.scheme, lower_cmp)
-        .then_with(|| opt_cmp(x.authority, y.authority, authority_cmp))
-        .then_with(|| path_cmp(x.path, y.path, x.scheme.is_none() && x.authority.is_none()))
-        .then_with(|| opt_cmp(x.query, y.query, pct_cmp))
-        .then_with(|| opt_cmp(x.fragment, y.fragment, pct_cmp))
+    // The path is only reached once the schemes and authorities matched, so
+    // `x` alone says whether both belong to relative-path references.
+    let relative = x.scheme.is_none() && x.authority.is_none();
+    opt_eq(x.scheme, y.scheme, str::eq_ignore_ascii_case)
+        && opt_eq(x.authority, y.authority, authority_eq)
+        && path_eq(x.path, y.path, relative)
+        && opt_eq(x.query, y.query, pct_eq)
+        && opt_eq(x.fragment, y.fragment, pct_eq)
 }
 
-fn opt_cmp(a: Option<&str>, b: Option<&str>, cmp: impl FnOnce(&str, &str) -> Ordering) -> Ordering {
+fn opt_eq(a: Option<&str>, b: Option<&str>, eq: impl FnOnce(&str, &str) -> bool) -> bool {
     match (a, b) {
-        (Some(x), Some(y)) => cmp(x, y),
-        _ => a.is_some().cmp(&b.is_some()),
+        (Some(x), Some(y)) => eq(x, y),
+        (None, None) => true,
+        (Some(_), None) | (None, Some(_)) => false,
     }
 }
 
-fn lower_cmp(a: &str, b: &str) -> Ordering {
-    if a.eq_ignore_ascii_case(b) {
-        return Ordering::Equal;
-    }
-    a.bytes().map(|c| c.to_ascii_lowercase()).cmp(b.bytes().map(|c| c.to_ascii_lowercase()))
-}
-
-fn authority_cmp(a: &str, b: &str) -> Ordering {
+fn authority_eq(a: &str, b: &str) -> bool {
     let (ui_a, host_a, port_a) = split_authority(a);
     let (ui_b, host_b, port_b) = split_authority(b);
-    opt_cmp(ui_a, ui_b, pct_cmp)
-        .then_with(|| host_cmp(host_a, host_b))
-        .then_with(|| port_a.cmp(&port_b))
+    port_a == port_b && opt_eq(ui_a, ui_b, pct_eq) && host_eq(host_a, host_b)
 }
 
-fn host_cmp(a: &str, b: &str) -> Ordering {
+fn host_eq(a: &str, b: &str) -> bool {
     if memchr::memchr(b'%', a.as_bytes()).is_none() && memchr::memchr(b'%', b.as_bytes()).is_none() {
-        return lower_cmp(a, b);
+        return a.eq_ignore_ascii_case(b);
     }
-    canonical(a, true).cmp(&canonical(b, true))
+    canonical(a, true) == canonical(b, true)
 }
 
-/// `relative` says that both paths belong to relative-path references. The
-/// caller only gets here when the schemes and authorities compared equal, so
-/// it holds for both or neither.
-fn path_cmp(a: &str, b: &str, relative: bool) -> Ordering {
-    if a == b {
-        return Ordering::Equal;
-    }
-    canonical_path(a, relative).cmp(&canonical_path(b, relative))
+fn path_eq(a: &str, b: &str, relative: bool) -> bool {
+    a == b || canonical_path(a, relative) == canonical_path(b, relative)
 }
 
-fn pct_cmp(a: &str, b: &str) -> Ordering {
-    if a == b {
-        return Ordering::Equal;
-    }
-    canonical(a, false).cmp(&canonical(b, false))
+fn pct_eq(a: &str, b: &str) -> bool {
+    a == b || canonical(a, false) == canonical(b, false)
 }
 
-#[must_use]
-pub fn authority_eq(a: &str, b: &str) -> bool {
-    authority_cmp(a, b) == Ordering::Equal
-}
-
-#[must_use]
-pub fn path_eq_normalized(a: &str, b: &str) -> bool {
-    path_cmp(a, b, false) == Ordering::Equal
-}
-
-#[must_use]
-pub fn pct_unreserved_eq(a: &str, b: &str) -> bool {
-    pct_cmp(a, b) == Ordering::Equal
-}
-
-/// Hashes the normal form, so IRIs that compare equal hash alike.
-pub fn normalized_hash<H: Hasher>(iri: &str, p: Positions, state: &mut H) {
-    let mut sink = HashSink {
-        state,
-        buf: [0; HASH_CHUNK],
-        len: 0,
-    };
-    write_normalized(iri, p, false, &mut sink);
-    sink.finish();
-}
-
-/// Where [`write_normalized`] puts the normal form.
-trait Sink {
-    fn put(&mut self, s: &str);
-    /// Puts `s` with its ASCII letters lowercased.
-    fn put_lower(&mut self, s: &str);
-    /// Puts one ASCII byte.
-    fn put_ascii(&mut self, byte: u8);
-}
-
-impl Sink for String {
-    fn put(&mut self, s: &str) {
-        self.push_str(s);
-    }
-
-    fn put_lower(&mut self, s: &str) {
-        let start = self.len();
-        self.push_str(s);
-        self[start..].make_ascii_lowercase();
-    }
-
-    fn put_ascii(&mut self, byte: u8) {
-        debug_assert!(byte.is_ascii());
-        self.push(char::from(byte));
-    }
-}
-
-const HASH_CHUNK: usize = 128;
-
-/// Feeds a hasher the normal form in fixed-size chunks.
-///
-/// `Hasher::write` is not required to be streaming: hashers such as `FxHasher`
-/// mix each call separately, so `write(b"a~")` and `write(b"a"); write(b"~")`
-/// differ. Equal IRIs must therefore reach the hasher as identical calls. The
-/// chunk boundaries depend only on the position in the normal form, never on
-/// how the input spelled it.
-struct HashSink<'a, H> {
-    state: &'a mut H,
-    buf: [u8; HASH_CHUNK],
-    len: usize,
-}
-
-impl<H: Hasher> HashSink<'_, H> {
-    fn put_bytes(&mut self, mut bytes: &[u8], lower: bool) {
-        while !bytes.is_empty() {
-            let n = (HASH_CHUNK - self.len).min(bytes.len());
-            let dst = &mut self.buf[self.len..self.len + n];
-            dst.copy_from_slice(&bytes[..n]);
-            if lower {
-                dst.make_ascii_lowercase();
-            }
-            self.len += n;
-            bytes = &bytes[n..];
-            if self.len == HASH_CHUNK {
-                self.state.write(&self.buf);
-                self.len = 0;
-            }
-        }
-    }
-
-    fn finish(self) {
-        if self.len > 0 {
-            self.state.write(&self.buf[..self.len]);
-        }
-    }
-}
-
-impl<H: Hasher> Sink for HashSink<'_, H> {
-    fn put(&mut self, s: &str) {
-        self.put_bytes(s.as_bytes(), false);
-    }
-
-    fn put_lower(&mut self, s: &str) {
-        self.put_bytes(s.as_bytes(), true);
-    }
-
-    fn put_ascii(&mut self, byte: u8) {
-        self.buf[self.len] = byte;
-        self.len += 1;
-        if self.len == HASH_CHUNK {
-            self.state.write(&self.buf);
-            self.len = 0;
-        }
-    }
+/// Appends `s` with its ASCII letters lowercased.
+fn push_lower(out: &mut String, s: &str) {
+    let start = out.len();
+    out.push_str(s);
+    out[start..].make_ascii_lowercase();
 }
 
 /// Writes the normal form of the IRI reference `iri` (see the module docs).
@@ -246,12 +121,12 @@ impl<H: Hasher> Sink for HashSink<'_, H> {
 /// With `scheme_defaults`, the RFC 3986 §6.2.3 scheme-based steps are applied
 /// too: an empty port is dropped for every scheme, and for `http` and `https`
 /// the default port is dropped and an empty path under an authority becomes
-/// `/`. Equality and hashing never use them.
-fn write_normalized<S: Sink>(iri: &str, p: Positions, scheme_defaults: bool, sink: &mut S) {
+/// `/`. [`iri_eq`] never uses them.
+fn write_normalized(iri: &str, p: Positions, scheme_defaults: bool, out: &mut String) {
     let scheme = (p.scheme_end > 0).then(|| &iri[..p.scheme_end - 1]);
     if let Some(scheme) = scheme {
-        sink.put_lower(scheme);
-        sink.put(":");
+        push_lower(out, scheme);
+        out.push(':');
     }
     let default_port = match scheme {
         Some(s) if scheme_defaults && s.eq_ignore_ascii_case("http") => Some("80"),
@@ -260,53 +135,49 @@ fn write_normalized<S: Sink>(iri: &str, p: Positions, scheme_defaults: bool, sin
     };
     let has_authority = p.authority_end > p.scheme_end;
     if has_authority {
-        sink.put("//");
+        out.push_str("//");
         let (user_info, host, port) = split_authority(&iri[p.scheme_end + 2..p.authority_end]);
         if let Some(user_info) = user_info {
-            put_pct_normalized(sink, user_info, false);
-            sink.put("@");
+            push_pct_normalized(out, user_info, false);
+            out.push('@');
         }
-        put_pct_normalized(sink, host, true);
+        push_pct_normalized(out, host, true);
         if let Some(port) = port.filter(|&port| !(scheme_defaults && port.is_empty()) && Some(port) != default_port) {
-            sink.put(":");
-            sink.put(port);
+            out.push(':');
+            out.push_str(port);
         }
     }
     let path = canonical_path(&iri[p.authority_end..p.path_end], scheme.is_none() && !has_authority);
     if path.is_empty() && has_authority && default_port.is_some() {
-        sink.put("/");
+        out.push('/');
     } else {
-        sink.put(path_guard(scheme.is_some(), has_authority, &path));
-        sink.put(&path);
+        out.push_str(path_guard(scheme.is_some(), has_authority, &path));
+        out.push_str(&path);
     }
     if p.query_end > p.path_end {
-        sink.put("?");
-        put_pct_normalized(sink, &iri[p.path_end + 1..p.query_end], false);
+        out.push('?');
+        push_pct_normalized(out, &iri[p.path_end + 1..p.query_end], false);
     }
     if iri.len() > p.query_end {
-        sink.put("#");
-        put_pct_normalized(sink, &iri[p.query_end + 1..], false);
+        out.push('#');
+        push_pct_normalized(out, &iri[p.query_end + 1..], false);
     }
 }
 
-/// Puts `s` percent-normalized. With `lower`, ASCII letters are lowercased
+/// Appends `s` percent-normalized. With `lower`, ASCII letters are lowercased
 /// too, except the hex digits of the escapes that stay encoded.
 ///
 /// How an escape normalizes is [`pct::rfc3986`]'s decision. It needs no
 /// UTF-8 from the decoded octets (`%FF` is a valid escape), and encodes a `%`
 /// that starts no escape, which only an unchecked parse can produce, as `%25`.
-/// Equality, hashing and `normalized()` all go through here.
-fn put_pct_normalized<S: Sink>(sink: &mut S, s: &str, lower: bool) {
+/// The comparison and `normalized()` both go through here.
+fn push_pct_normalized(out: &mut String, s: &str, lower: bool) {
     for chunk in chunks(s) {
         match chunk {
-            Chunk::Literal(run) if lower => sink.put_lower(run),
-            Chunk::Literal(run) => sink.put(run),
-            Chunk::Decoded(byte) => sink.put_ascii(if lower { byte.to_ascii_lowercase() } else { byte }),
-            Chunk::Encoded(escape) => {
-                for byte in escape {
-                    sink.put_ascii(byte);
-                }
-            }
+            Chunk::Literal(run) if lower => push_lower(out, run),
+            Chunk::Literal(run) => out.push_str(run),
+            Chunk::Decoded(byte) => out.push(char::from(if lower { byte.to_ascii_lowercase() } else { byte })),
+            Chunk::Encoded(escape) => out.extend(escape.into_iter().map(char::from)),
         }
     }
 }
@@ -317,7 +188,7 @@ fn canonical(s: &str, lower: bool) -> Cow<'_, str> {
         return Cow::Borrowed(s);
     }
     let mut out = String::with_capacity(s.len());
-    put_pct_normalized(&mut out, s, lower);
+    push_pct_normalized(&mut out, s, lower);
     Cow::Owned(out)
 }
 
@@ -350,22 +221,43 @@ fn normalized_string(iri: &str, p: Positions, scheme_defaults: bool) -> String {
     out
 }
 
-/// Generates `normalized` and `normalized_for_scheme` for one of the four
-/// reference types. The output is ASCII whenever the input is, so the URI
-/// types stay URIs.
+/// Generates `equivalent`, `normalized` and `normalized_for_scheme` for one of
+/// the four reference types. The normal form is ASCII whenever the input is,
+/// so the URI types stay URIs.
 macro_rules! normalized_methods {
     ($ty:ident, $field:ident $(. $inner:tt)?) => {
         impl<T: Deref<Target = str>> $ty<T> {
+            /// Whether `self` and `other` are equivalent under RFC 3987
+            /// §5.3.2 (RFC 3986 §6.2.2) syntax-based normalization: whether
+            /// they have the same [`normalized`](Self::normalized) form.
+            ///
+            /// This is not `==`, which is RFC 3987 §5.3.1 Simple String
+            /// Comparison: `HTTP://a/%7e` and `http://a/~` are equivalent but
+            /// not equal. Neither form is built; the components are compared
+            /// as they are read, and nothing is allocated unless a component
+            /// holds an escape, uppercase host letters or dot segments.
+            #[must_use]
+            pub fn equivalent<U: Deref<Target = str>>(&self, other: &$ty<U>) -> bool {
+                iri_eq(
+                    &self$(.$inner)?.$field,
+                    self$(.$inner)?.positions,
+                    &other$(.$inner)?.$field,
+                    other$(.$inner)?.positions,
+                )
+            }
+
             /// Returns the RFC 3986/3987 §6.2.2 syntax-based normal form: the
             /// scheme and host lowercased, escaped unreserved characters
             /// decoded, other escapes in uppercase hex, and `.` and `..`
-            /// segments removed.
+            /// segments removed. The case of the user info, path, query and
+            /// fragment is kept, query parameters keep their order, and no
+            /// trailing slash is added or removed.
             ///
-            /// This is the form equality and hashing compare, so the result is
-            /// equal to `self` and hashes alike (unless the `bytewise` feature
-            /// makes them byte-wise). The case of the user
-            /// info, path, query and fragment is kept, query parameters keep
-            /// their order, and no trailing slash is added or removed.
+            /// The result is [`equivalent`](Self::equivalent) to `self`, and
+            /// two values are equivalent exactly when their normal forms are
+            /// `==`. To key a map or set by normalized identity, normalize
+            /// each IRI once and use the result as the key: `==` and `Hash`
+            /// on it then compare bytes.
             #[must_use]
             pub fn normalized(&self) -> $ty<String> {
                 let s = normalized_string(&self$(.$inner)?.$field, self$(.$inner)?.positions, false);
@@ -379,9 +271,9 @@ macro_rules! normalized_methods {
             /// `/`. Other schemes keep everything else as `normalized` leaves
             /// it.
             ///
-            /// Equality is protocol agnostic, so unlike `normalized` the
-            /// result can differ from `self`: `http://a:80` and `http://a/`
-            /// are not equal.
+            /// [`equivalent`](Self::equivalent) is protocol agnostic, so
+            /// unlike `normalized` the result need not be equivalent to
+            /// `self`: `http://a:80` and `http://a/` are not.
             #[must_use]
             pub fn normalized_for_scheme(&self) -> $ty<String> {
                 let s = normalized_string(&self$(.$inner)?.$field, self$(.$inner)?.positions, true);
@@ -396,56 +288,32 @@ normalized_methods!(Iri, iri.0);
 normalized_methods!(UriRef, uri);
 normalized_methods!(Uri, uri.0);
 
-impl<T: Deref<Target = str>> Iri<T> {
-    /// The normal form `==` compares, borrowed when `self` is visibly in it,
-    /// or `None` under `bytewise`, where `==` compares `as_str()` itself.
-    ///
-    /// For `iri-rs-enum`, whose derive matches `as_str()` against the declared
-    /// spellings of its variants, and on a miss matches this against their
-    /// normal forms.
-    #[doc(hidden)]
-    #[must_use]
-    pub fn __eq_form(&self) -> Option<Cow<'_, str>> {
-        let (s, p) = (&*self.0.iri, self.0.positions);
-        if cfg!(feature = "bytewise") {
-            None
-        } else if is_plainly_normal(s, p) {
-            Some(Cow::Borrowed(s))
-        } else {
-            Some(Cow::Owned(normalized_string(s, p, false)))
-        }
-    }
-}
-
-/// Whether `s` is visibly its own normal form: no escapes, no ASCII
-/// uppercase in the scheme or host, no dot segments. Never says so of a string
-/// that normalization changes; it may miss some that it leaves alone.
-fn is_plainly_normal(s: &str, p: Positions) -> bool {
-    if memchr::memchr(b'%', s.as_bytes()).is_some() {
-        return false;
-    }
-    let parts = Parts::of(s, p);
-    let has_upper = |t: &str| t.bytes().any(|b| b.is_ascii_uppercase());
-    if parts.scheme.is_some_and(has_upper) {
-        return false;
-    }
-    if parts.authority.is_some_and(|a| has_upper(split_authority(a).1)) {
-        return false;
-    }
-    // A relative-path reference can also gain a `./`, but only through dot
-    // segments, which this already rules out.
-    path_is_normalized(parts.path)
-}
-
 #[cfg(test)]
 mod tests {
+    use std::{
+        cmp::Ordering,
+        collections::{BTreeSet, HashSet},
+        hash::{BuildHasher, Hash, RandomState},
+    };
+
     use super::*;
-    use crate::parse::{find_iri_positions, find_iri_ref_positions};
+    use crate::{
+        parse::{find_iri_positions, find_iri_ref_positions},
+        types::{IriBuf, IriRefBuf, UriBuf, UriRefBuf},
+    };
 
     fn eq(a: &str, b: &str) -> bool {
         let pa = find_iri_ref_positions(a);
         let pb = find_iri_ref_positions(b);
         iri_eq(a, pa, b, pb)
+    }
+
+    fn normalized(s: &str) -> String {
+        IriRefBuf::new(s).unwrap().normalized().into_inner()
+    }
+
+    fn normalized_for_scheme(s: &str) -> String {
+        IriRefBuf::new(s).unwrap().normalized_for_scheme().into_inner()
     }
 
     #[test]
@@ -485,26 +353,19 @@ mod tests {
         assert!(!eq("http://a", "https://a"));
     }
 
-    fn hash_of(s: &str) -> u64 {
-        use std::hash::{DefaultHasher, Hasher};
-        let mut hasher = DefaultHasher::new();
-        normalized_hash(s, find_iri_ref_positions(s), &mut hasher);
-        hasher.finish()
-    }
-
     /// A `..` a relative reference cannot resolve away still moves the target
     /// it resolves to, so it may not be normalized out of the comparison.
     #[test]
     fn relative_references_climbing_past_their_root_are_distinct() {
         for (a, b) in [("../a", "a"), ("..", ""), ("a/../..", ""), ("../..", ".."), ("../a", "./a")] {
-            assert!(!eq(a, b), "`{a}` should not equal `{b}`");
+            assert!(!eq(a, b), "`{a}` should not be equivalent to `{b}`");
         }
     }
 
     #[test]
-    fn equal_relative_references_are_recognised() {
+    fn equivalent_relative_references_are_recognised() {
         for (a, b) in [("../..", "../../"), ("./a", "a"), ("a/../b", "b"), ("../a/..", "../"), ("x/./y", "x/y")] {
-            assert!(eq(a, b), "`{a}` should equal `{b}`");
+            assert!(eq(a, b), "`{a}` should be equivalent to `{b}`");
         }
     }
 
@@ -514,8 +375,8 @@ mod tests {
     fn relative_references_naming_the_base_directory_keep_dot_slash() {
         for a in [".", "./", "a/..", "%2E", "a/b/../..", "./."] {
             assert_eq!(normalized(a), "./", "`{a}`");
-            assert!(!eq(a, ""), "`{a}` should not equal the empty reference");
-            assert!(eq(a, "./"), "`{a}` should equal `./`");
+            assert!(!eq(a, ""), "`{a}` should not be equivalent to the empty reference");
+            assert!(eq(a, "./"), "`{a}` should be equivalent to `./`");
         }
         assert_eq!(normalized(".?q"), "./?q");
         assert!(!eq(".?q", "?q"));
@@ -526,7 +387,7 @@ mod tests {
     }
 
     /// Under a scheme, dot segments go exactly as resolution removes them
-    /// (RFC 3986 §5.2.4, not Errata 4547), so equal IRIs resolve alike.
+    /// (RFC 3986 §5.2.4, not Errata 4547), so equivalent IRIs resolve alike.
     #[test]
     fn dot_segments_under_a_scheme_go_as_resolution_removes_them() {
         for (a, expected) in [
@@ -547,12 +408,11 @@ mod tests {
         assert_eq!(normalized("a/../../b"), "../b");
     }
 
-    /// Every IRI with a scheme equals what it resolves to: resolution applies
-    /// the same dot-segment removal as the normal form.
+    /// Every IRI with a scheme is equivalent to what it resolves to:
+    /// resolution applies the same dot-segment removal as the normal form.
     #[test]
-    fn an_iri_equals_its_resolution() {
+    fn an_iri_is_equivalent_to_its_resolution() {
         const SEGMENTS: &[&str] = &["", "a", "b", ".", "..", "%2E", "%2e%2E", "a:b"];
-        use crate::types::{IriBuf, IriRefBuf};
         let base = IriBuf::new("http://x/y".to_owned()).unwrap();
         let mut state: u32 = 0x00d0_7d07;
         let mut next = || {
@@ -574,7 +434,7 @@ mod tests {
             let mut decoded = IriRefBuf::new(normalized(&s)).unwrap();
             decoded.resolve(&base).unwrap();
             if !s.contains('%') {
-                assert!(eq(&s, buf.as_str()), "`{s}` should equal its resolution `{}`", buf.as_str());
+                assert!(eq(&s, buf.as_str()), "`{s}` should be equivalent to its resolution `{}`", buf.as_str());
             }
             assert_eq!(decoded.as_str(), normalized(&s), "`{s}`");
         }
@@ -584,11 +444,10 @@ mod tests {
     ///
     /// Left out: a rootless base with no `/` (`foo:`). Merging with it leaves
     /// the reference's path as it is, and §5.2.4 gives `a/..` a leading `/`
-    /// there but `./` none. Equality cannot depend on the base, so `a/..` and
-    /// `./` stay equal, as they are against every other base.
+    /// there but `./` none. Equivalence cannot depend on the base, so `a/..`
+    /// and `./` stay equivalent, as they are against every other base.
     #[test]
     fn normalizing_a_reference_keeps_its_resolution() {
-        use crate::types::{IriBuf, IriRefBuf};
         let bases = ["http://a/b/c", "http://a/b/c/", "http://a", "foo:/a/b", "foo:a/b"];
         let refs = [
             "",
@@ -621,9 +480,8 @@ mod tests {
                     buf
                 };
                 let (plain, norm) = (resolve(r), resolve(&normalized(r)));
-                // Through `iri_eq`, which `bytewise` does not swap out.
                 assert!(
-                    eq(plain.as_str(), norm.as_str()),
+                    plain.equivalent(&norm),
                     "`{r}` resolves to `{}`, its normal form `{}` to `{}`",
                     plain.as_str(),
                     normalized(r),
@@ -641,27 +499,12 @@ mod tests {
         assert!(eq("http://host/b/..//a", "http://host//a"));
     }
 
+    /// The comparison skips normalizing a path that `path_is_normalized`
+    /// vouches for. Vouching wrongly would compare an unnormalized path and
+    /// tell equivalent IRIs apart, so the shortcut may be conservative (`./a:b`
+    /// is already normal but is not recognised as such) yet never optimistic.
     #[test]
-    fn hash_agrees_with_eq() {
-        for (a, b) in [
-            ("http://a/b/../c", "http://a/c"),
-            ("../..", "../../"),
-            ("./a", "a"),
-            ("a/../b", "b"),
-            ("http://host/b/..//a", "http://host//a"),
-        ] {
-            assert!(eq(a, b), "`{a}` should equal `{b}`");
-            assert_eq!(hash_of(a), hash_of(b), "`{a}` and `{b}` hash differently");
-        }
-    }
-
-    /// `normalized_hash` skips normalizing when the path is already normal.
-    /// Claiming that wrongly would hash an unnormalized path and drop equal
-    /// IRIs into different buckets, so the shortcut may be conservative
-    /// (`./a:b` is already normal but is not recognised as such) yet never
-    /// optimistic.
-    #[test]
-    fn hash_shortcut_is_never_optimistic() {
+    fn path_shortcut_is_never_optimistic() {
         for path in [
             "", "/", "/a/b", "a:b", "./a:b", "a/b:c", "/a:b", "a/../b", "..", "/.//", "mailto@x", "a//b", "/a/./b",
         ] {
@@ -672,27 +515,8 @@ mod tests {
     }
 
     #[test]
-    fn paths_needing_a_colon_guard_still_hash_together() {
+    fn paths_needing_a_colon_guard_are_still_equivalent() {
         assert!(eq("urn:a:b", "urn:./a:b"));
-        assert_eq!(hash_of("urn:a:b"), hash_of("urn:./a:b"));
-    }
-
-    #[test]
-    fn distinct_references_hash_apart() {
-        for (a, b) in [("../a", "a"), ("..", ""), ("http://host//a", "http://host/a")] {
-            assert!(!eq(a, b), "`{a}` should not equal `{b}`");
-            assert_ne!(hash_of(a), hash_of(b), "`{a}` and `{b}` hash alike");
-        }
-    }
-
-    use crate::types::{IriBuf, IriRefBuf, UriBuf};
-
-    fn normalized(s: &str) -> String {
-        IriRefBuf::new(s).unwrap().normalized().into_inner()
-    }
-
-    fn normalized_for_scheme(s: &str) -> String {
-        IriRefBuf::new(s).unwrap().normalized_for_scheme().into_inner()
     }
 
     #[test]
@@ -793,8 +617,46 @@ mod tests {
         assert_eq!(IriBuf::new("HTTP://A/./b").unwrap().normalized(), "http://a/b");
         assert_eq!(IriBuf::new("HTTP://A:80").unwrap().normalized_for_scheme().as_str(), "http://a/");
         assert_eq!(UriBuf::new("HTTP://A/%7e").unwrap().normalized().as_str(), "http://a/~");
-        assert_eq!(crate::types::UriRefBuf::new("./%7E").unwrap().normalized().as_str(), "~");
+        assert_eq!(UriRefBuf::new("./%7E").unwrap().normalized().as_str(), "~");
         assert_eq!(IriRef::parse("A/../é").unwrap().normalized().as_str(), "é");
+    }
+
+    #[test]
+    fn equivalent_exists_on_every_type_and_accepts_any_storage() {
+        assert!(IriBuf::new("HTTP://A/b").unwrap().equivalent(&Iri::parse("http://a/b").unwrap()));
+        assert!(Iri::parse("http://a/%7e").unwrap().equivalent(&IriBuf::new("http://a/~").unwrap()));
+        assert!(IriRefBuf::new("a/../../b").unwrap().equivalent(&IriRef::parse("../b").unwrap()));
+        assert!(UriBuf::new("HTTP://A/b").unwrap().equivalent(&Uri::parse("http://a/b").unwrap()));
+        assert!(UriRefBuf::new("./%7E").unwrap().equivalent(&UriRef::parse("~").unwrap()));
+    }
+
+    /// Spellings that RFC 3986 §6.2.2 makes equivalent are still different
+    /// strings, so §5.3.1 `==` tells them apart.
+    #[test]
+    fn syntax_based_equivalents_are_equivalent_but_not_equal() {
+        for (a, b) in [
+            ("HTTP://A/b", "http://a/b"),
+            ("http://a/%7e", "http://a/~"),
+            ("http://a/%2f", "http://a/%2F"),
+            ("foo:a/../../b", "foo:/b"),
+            ("a/../../b", "../b"),
+        ] {
+            let (x, y) = (IriRefBuf::new(a).unwrap(), IriRefBuf::new(b).unwrap());
+            assert!(x.equivalent(&y), "`{a}` should be equivalent to `{b}`");
+            assert!(y.equivalent(&x), "`{b}` should be equivalent to `{a}`");
+            assert_ne!(x, y, "`{a}` should not be `==` to `{b}`");
+        }
+    }
+
+    /// Scheme-based defaults, trailing slashes and path case are outside
+    /// §6.2.2, so these are neither equal nor equivalent.
+    #[test]
+    fn scheme_based_and_case_differences_are_neither_equal_nor_equivalent() {
+        for (a, b) in [("http://a:80/", "http://a/"), ("/foo/bar", "/foo/bar/"), ("http://a/A", "http://a/a")] {
+            let (x, y) = (IriRefBuf::new(a).unwrap(), IriRefBuf::new(b).unwrap());
+            assert!(!x.equivalent(&y), "`{a}` should not be equivalent to `{b}`");
+            assert_ne!(x, y, "`{a}` should not be `==` to `{b}`");
+        }
     }
 
     const CORPUS: &[&str] = &[
@@ -860,130 +722,62 @@ mod tests {
         "http://É.org/%c3%a9",
     ];
 
-    fn hash_with<H: Hasher + Default>(s: &str) -> u64 {
-        let mut hasher = H::default();
-        normalized_hash(s, find_iri_ref_positions(s), &mut hasher);
-        hasher.finish()
-    }
-
-    /// `is_plainly_normal` may only vouch for strings normalization leaves
-    /// alone, or the enum derive would miss variants.
+    /// Two references are equivalent exactly when their normal forms are
+    /// byte-equal, every reference is equivalent to its normal form, and
+    /// normalizing is idempotent.
     #[test]
-    fn plainly_normal_is_never_optimistic() {
-        for &s in CORPUS {
-            let p = find_iri_ref_positions(s);
-            if is_plainly_normal(s, p) {
-                assert_eq!(normalized(s), s, "`{s}` was vouched for");
-            }
-        }
-        for s in ["http://a/b", "foo:a:b", "http://u:P@a/B?Q#F"] {
-            assert!(is_plainly_normal(s, find_iri_ref_positions(s)), "`{s}`");
-        }
-    }
-
-    #[test]
-    fn eq_form_is_the_normal_form() {
-        let form = |s: &str| IriBuf::new(s).unwrap().__eq_form().map(Cow::into_owned);
-        if cfg!(feature = "bytewise") {
-            assert_eq!(form("HTTPS://A/b"), None);
-        } else {
-            assert!(matches!(IriBuf::new("http://a/b").unwrap().__eq_form(), Some(Cow::Borrowed("http://a/b"))));
-            assert_eq!(form("http://a/%2F").as_deref(), Some("http://a/%2F"));
-            assert_eq!(form("HTTPS://A/%7e/./b").as_deref(), Some("https://a/~/b"));
-        }
-    }
-
-    /// Mixes every `write` call separately, as `FxHasher` does, so chunking
-    /// that depends on the input's spelling shows up as differing hashes.
-    #[derive(Default)]
-    struct CallSensitive(u64);
-
-    impl Hasher for CallSensitive {
-        fn finish(&self) -> u64 {
-            self.0
-        }
-
-        fn write(&mut self, bytes: &[u8]) {
-            let mut call = std::hash::DefaultHasher::new();
-            call.write(bytes);
-            self.0 = self.0.rotate_left(5) ^ call.finish();
-        }
-    }
-
-    /// `normalized()` is the form equality and hashing compare: every IRI
-    /// equals its normal form, two IRIs are equal exactly when their normal
-    /// forms are byte-equal, and equal IRIs hash alike under any hasher.
-    #[test]
-    fn normalized_agrees_with_eq_and_hash() {
+    fn equivalent_agrees_with_normalized() {
         for &a in CORPUS {
-            let na = normalized(a);
-            assert!(eq(a, &na), "`{a}` should equal its normal form `{na}`");
+            let (x, na) = (IriRefBuf::new(a).unwrap(), normalized(a));
+            assert!(x.equivalent(&IriRefBuf::new(na.clone()).unwrap()), "`{a}` should be equivalent to `{na}`");
             assert_eq!(normalized(&na), na, "normalizing `{a}` is not idempotent");
-            assert_eq!(hash_of(a), hash_of(&na), "`{a}` and `{na}` hash differently");
             for &b in CORPUS {
-                let nb = normalized(b);
-                assert_eq!(eq(a, b), na == nb, "eq(`{a}`, `{b}`) disagrees with `{na}` vs `{nb}`");
-                if eq(a, b) {
-                    assert_eq!(hash_of(a), hash_of(b), "`{a}` and `{b}` hash differently");
-                    assert_eq!(
-                        hash_with::<CallSensitive>(a),
-                        hash_with::<CallSensitive>(b),
-                        "`{a}` and `{b}` reach the hasher differently"
-                    );
-                }
+                let (y, nb) = (IriRefBuf::new(b).unwrap(), normalized(b));
+                assert_eq!(x.equivalent(&y), na == nb, "`{a}` vs `{b}` disagrees with `{na}` vs `{nb}`");
             }
         }
     }
 
-    fn cmp(a: &str, b: &str) -> Ordering {
-        iri_cmp(a, find_iri_ref_positions(a), b, find_iri_ref_positions(b))
+    fn hash_of<V: Hash + ?Sized>(hasher: &RandomState, value: &V) -> u64 {
+        hasher.hash_one(value)
     }
 
-    #[test]
-    fn equal_iris_order_as_equal() {
-        for (a, b) in [
-            ("http://A/", "http://a/"),
-            ("http://a/%7E", "http://a/~"),
-            ("http://a/b/../c", "http://a/c"),
-            ("HTTP://a", "http://a"),
-        ] {
-            assert_eq!(cmp(a, b), Ordering::Equal, "`{a}` vs `{b}`");
-        }
-    }
-
-    /// `iri_cmp` is a total order over the corpus, and equality is exactly
-    /// its `Equal`, as `Ord` requires.
-    #[test]
-    fn ordering_is_a_total_order_consistent_with_eq() {
-        for &a in CORPUS {
-            assert_eq!(cmp(a, a), Ordering::Equal, "`{a}`");
-            for &b in CORPUS {
-                let ab = cmp(a, b);
-                assert_eq!(ab, cmp(b, a).reverse(), "`{a}` vs `{b}` is not antisymmetric");
-                assert_eq!(ab == Ordering::Equal, normalized(a) == normalized(b), "`{a}` vs `{b}`");
-                for &c in CORPUS {
-                    if ab != Ordering::Greater && cmp(b, c) != Ordering::Greater {
-                        assert_ne!(cmp(a, c), Ordering::Greater, "`{a}` <= `{b}` <= `{c}` but `{a}` > `{c}`");
-                    }
+    /// `==`, `Hash` and `Ord` are RFC 3987 §5.3.1 Simple String Comparison on
+    /// all four types, so they agree with `as_str()` for every pair, and a
+    /// value hashes as its `str` does, as `Borrow<str>` requires.
+    fn check_string_identity<V: Eq + Ord + Hash + Deref<Target = str>>(values: &[V]) {
+        let hasher = RandomState::new();
+        for a in values {
+            assert_eq!(hash_of(&hasher, a), hash_of(&hasher, &**a), "`{}`", &**a);
+            for b in values {
+                assert_eq!(a == b, **a == **b, "`{}` == `{}`", &**a, &**b);
+                assert_eq!(a.cmp(b), (**a).cmp(&**b), "`{}` cmp `{}`", &**a, &**b);
+                if a == b {
+                    assert_eq!(hash_of(&hasher, a), hash_of(&hasher, b), "`{}`", &**a);
                 }
             }
         }
-    }
-
-    /// Through the `Ord` impl, which `bytewise` swaps for a byte-wise one.
-    #[cfg(not(feature = "bytewise"))]
-    #[test]
-    fn btree_set_deduplicates_equal_iris() {
-        let set: std::collections::BTreeSet<IriRefBuf> = CORPUS.iter().map(|s| IriRefBuf::new(*s).unwrap()).collect();
-        let distinct: std::collections::HashSet<String> = CORPUS.iter().map(|s| normalized(s)).collect();
-        assert_eq!(set.len(), distinct.len());
+        let distinct: HashSet<&str> = values.iter().map(|v| &**v).collect();
+        assert_eq!(values.iter().collect::<HashSet<_>>().len(), distinct.len());
+        assert_eq!(values.iter().collect::<BTreeSet<_>>().len(), distinct.len());
     }
 
     #[test]
-    fn long_iris_hash_alike_across_chunk_boundaries() {
-        let a = format!("http://a/{}%7E{}", "x".repeat(HASH_CHUNK - 12), "y".repeat(2 * HASH_CHUNK));
-        let b = a.replace("%7E", "~");
-        assert!(eq(&a, &b));
-        assert_eq!(hash_with::<CallSensitive>(&a), hash_with::<CallSensitive>(&b));
+    fn eq_hash_and_ord_compare_as_str_on_every_type() {
+        let iri_refs: Vec<IriRefBuf> = CORPUS.iter().map(|s| IriRefBuf::new(*s).unwrap()).collect();
+        let iris: Vec<IriBuf> = CORPUS.iter().filter_map(|s| IriBuf::new(*s).ok()).collect();
+        let uri_refs: Vec<UriRefBuf> = CORPUS.iter().filter_map(|s| UriRefBuf::new(*s).ok()).collect();
+        let uris: Vec<UriBuf> = CORPUS.iter().filter_map(|s| UriBuf::new(*s).ok()).collect();
+        assert_eq!(iri_refs.len(), CORPUS.len());
+        assert!(!iris.is_empty() && !uri_refs.is_empty() && !uris.is_empty());
+        check_string_identity(&iri_refs);
+        check_string_identity(&iris);
+        check_string_identity(&uri_refs);
+        check_string_identity(&uris);
+        assert_eq!(
+            IriBuf::new("HTTP://A/b").unwrap().cmp(&IriBuf::new("http://a/b").unwrap()),
+            Ordering::Less,
+            "`Ord` is byte order: `H` sorts before `h`"
+        );
     }
 }

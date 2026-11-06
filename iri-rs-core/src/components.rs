@@ -50,7 +50,7 @@ pub fn path_is_absolute(path: &str) -> bool {
 ///
 /// A leading empty segment is likewise kept: `//a` and `/a` name different
 /// resources under an authority, so collapsing them would make distinct IRIs
-/// compare equal.
+/// normalize alike.
 ///
 /// Nothing here guards a first segment holding a `:`, unlike upstream `iref`'s
 /// context-free `Path::normalized`. This runs on the path of a *parsed* IRI,
@@ -130,11 +130,11 @@ fn close_directory(out: &str, absolute: bool) -> &'static str {
 /// Whether [`normalize_path`] would return `path` unchanged, judged by
 /// whether any segment is `.` or `..`.
 ///
-/// The single source of truth for that question: callers on the comparison and
-/// hashing paths use it to skip the allocation. It may be conservative (`../a`
-/// has a `..` that normalization keeps) but never optimistic, or equal IRIs
-/// would hash apart. Dots inside a segment (`n.html`, `.well-known`, `a..b`)
-/// do not count.
+/// The single source of truth for that question: callers on the
+/// normalization and equivalence paths use it to skip the allocation. It may
+/// be conservative (`../a` has a `..` that normalization keeps) but never
+/// optimistic, or equivalent IRIs would compare apart. Dots inside a segment
+/// (`n.html`, `.well-known`, `a..b`) do not count.
 #[inline]
 pub(crate) fn path_is_normalized(path: &str) -> bool {
     let bytes = path.as_bytes();

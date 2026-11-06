@@ -20,11 +20,11 @@
 //! assert_eq!(term, Vocab::Name);
 //! ```
 //!
-//! `try_from` matches a variant by `==`, so any IRI equivalent to the declared
-//! one does, `HTTPS://Schema.org/name` included. The declared spelling is
-//! looked up first; any other is looked up by its normal form. With the
-//! `bytewise` feature `==` compares bytes, and only the declared spelling
-//! matches.
+//! `try_from` matches a variant by `==`, which is RFC 3987 §5.3.1 Simple
+//! String Comparison: only the declared spelling matches, and
+//! `HTTPS://Schema.org/name` is not `schema:name`. To accept equivalent
+//! spellings, convert the IRI's `normalized()` form and declare the variants
+//! in normal form.
 //!
 //! Variants with a single unnamed field act as fallbacks; the inner type must
 //! implement `TryFrom<&Iri<T>>` and `From<&Inner>` for `Iri<&'static str>`
@@ -41,9 +41,16 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::collections::HashMap;
 use syn::{
-    Attribute, Data, DeriveInput, Fields, LitStr, Meta, Token,
+    Attribute,
+    Data,
+    DeriveInput,
+    Fields,
+    LitStr,
+    Meta,
+    Token,
     parse::{Parse, ParseStream},
-    parse_macro_input, parse2,
+    parse_macro_input,
+    parse2,
 };
 
 macro_rules! bail {
@@ -171,7 +178,6 @@ pub fn iri_enum_derive(input: TokenStream) -> TokenStream {
 
     let type_id = ast.ident;
     let mut try_from_arms = TokenStream2::new();
-    let mut try_from_normal_arms = TokenStream2::new();
     let mut try_from_default = quote! { ::core::result::Result::Err(()) };
     let mut into_arms = TokenStream2::new();
 
@@ -199,14 +205,9 @@ pub fn iri_enum_derive(input: TokenStream) -> TokenStream {
                     bail!(variant_ident.span(), "missing `#[iri(...)]` attribute for unit variant `{}`", variant_ident);
                 };
                 let raw = iri.as_str();
-                let normal = iri.normalized();
-                let normal = normal.as_str();
                 let iri_expr = iri_const_tokens(&core, &iri);
                 try_from_arms.extend(quote! {
                     #raw => ::core::option::Option::Some(#type_id::#variant_ident),
-                });
-                try_from_normal_arms.extend(quote! {
-                    #normal => ::core::option::Option::Some(#type_id::#variant_ident),
                 });
                 into_arms.extend(quote! {
                     #type_id::#variant_ident => #iri_expr,
@@ -236,21 +237,13 @@ pub fn iri_enum_derive(input: TokenStream) -> TokenStream {
         {
             type Error = ();
 
-            // Two variants may name equal IRIs, and so share an arm.
+            // Two variants may declare the same IRI, and so share an arm.
             #[inline]
             #[allow(unreachable_patterns)]
             fn try_from(iri: &#core::Iri<__T>) -> ::core::result::Result<Self, ()> {
-                // A variant matches an IRI `==` to its own, so a spelling other
-                // than the declared one is looked up again by its normal form.
                 let found: ::core::option::Option<Self> = match iri.as_str() {
                     #try_from_arms
-                    _ => match iri.__eq_form() {
-                        ::core::option::Option::Some(form) => match &*form {
-                            #try_from_normal_arms
-                            _ => ::core::option::Option::None,
-                        },
-                        ::core::option::Option::None => ::core::option::Option::None,
-                    },
+                    _ => ::core::option::Option::None,
                 };
                 match found {
                     ::core::option::Option::Some(value) => ::core::result::Result::Ok(value),

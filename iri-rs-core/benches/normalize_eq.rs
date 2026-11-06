@@ -1,14 +1,6 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use iri_rs_core::Iri;
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    hint::black_box,
-};
-
-#[path = "corpus.rs"]
-mod corpus;
-use corpus::IRI_CORPUS;
+use std::hint::black_box;
 
 struct Pair {
     label: &'static str,
@@ -67,57 +59,23 @@ fn parse_pairs(pairs: &[Pair]) -> Vec<(&'static str, Iri<&'static str>, Iri<&'st
     pairs.iter().map(|p| (p.label, Iri::parse(p.a).unwrap(), Iri::parse(p.b).unwrap())).collect()
 }
 
-fn bench_iri_eq(c: &mut Criterion) {
+fn bench_equivalent(c: &mut Criterion) {
     for (group, pairs) in [
-        ("normalize/iri_eq/plain", PLAIN_PAIRS),
-        ("normalize/iri_eq/pct", PCT_PAIRS),
-        ("normalize/iri_eq/dot", DOT_PAIRS),
-        ("normalize/iri_eq/scheme_case", SCHEME_CASE_PAIRS),
+        ("normalize/equivalent/plain", PLAIN_PAIRS),
+        ("normalize/equivalent/pct", PCT_PAIRS),
+        ("normalize/equivalent/dot", DOT_PAIRS),
+        ("normalize/equivalent/scheme_case", SCHEME_CASE_PAIRS),
     ] {
         let parsed = parse_pairs(pairs);
         let mut g = c.benchmark_group(group);
         for (label, a, b) in &parsed {
             g.bench_with_input(BenchmarkId::from_parameter(label), &(a, b), |bh, (a, b)| {
-                bh.iter(|| black_box(a) == black_box(b));
+                bh.iter(|| black_box(a).equivalent(black_box(b)));
             });
         }
         g.finish();
     }
 }
 
-fn bench_iri_cmp(c: &mut Criterion) {
-    for (group, pairs) in [
-        ("normalize/iri_cmp/plain", PLAIN_PAIRS),
-        ("normalize/iri_cmp/pct", PCT_PAIRS),
-        ("normalize/iri_cmp/dot", DOT_PAIRS),
-        ("normalize/iri_cmp/scheme_case", SCHEME_CASE_PAIRS),
-    ] {
-        let parsed = parse_pairs(pairs);
-        let mut g = c.benchmark_group(group);
-        for (label, a, b) in &parsed {
-            g.bench_with_input(BenchmarkId::from_parameter(label), &(a, b), |bh, (a, b)| {
-                bh.iter(|| black_box(a).cmp(black_box(b)));
-            });
-        }
-        g.finish();
-    }
-}
-
-fn bench_normalized_hash(c: &mut Criterion) {
-    let iris: Vec<(&str, Iri<&str>)> = IRI_CORPUS.iter().filter_map(|c| Iri::parse(c.input).ok().map(|i| (c.label, i))).collect();
-
-    let mut g = c.benchmark_group("normalize/normalized_hash");
-    for (label, iri) in &iris {
-        g.bench_with_input(BenchmarkId::from_parameter(label), iri, |b, iri| {
-            b.iter(|| {
-                let mut h = DefaultHasher::new();
-                black_box(iri).hash(&mut h);
-                h.finish()
-            });
-        });
-    }
-    g.finish();
-}
-
-criterion_group!(benches, bench_iri_eq, bench_iri_cmp, bench_normalized_hash);
+criterion_group!(benches, bench_equivalent);
 criterion_main!(benches);

@@ -28,6 +28,8 @@ let back: Iri<&'static str> = (&Vocab::Knows).into();
 assert_eq!(back.as_str(), "https://schema.org/knows");
 ```
 
+`try_from` matches the declared spelling only, by RFC 3987 §5.3.1 simple string comparison: `HTTPS://Schema.org/name` is not `Vocab::Name`. To accept equivalent spellings, declare the variants in normal form and convert the IRI's `normalized()`.
+
 Prefixes resolve at macro expansion. Each variant's IRI is validated once against the real parser in [`iri-rs-core`](../iri-rs-core/) and emitted as a `const` from pre-computed component positions — no runtime parsing, no allocation.
 
 ---

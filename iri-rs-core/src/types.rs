@@ -1,9 +1,7 @@
 //! Generic `Iri<T>`, `IriRef<T>`, `Uri<T>`, `UriRef<T>` — parse-once, cached positions.
 
-#[cfg(feature = "bytewise")]
-use std::borrow::Borrow;
 use std::{
-    borrow::Cow,
+    borrow::{Borrow, Cow},
     cmp::Ordering,
     convert::TryFrom,
     fmt,
@@ -156,14 +154,6 @@ impl<T: Deref<Target = str>> AsRef<str> for IriRef<T> {
     }
 }
 
-#[cfg(feature = "bytewise")]
-impl<T: Deref<Target = str>> Borrow<str> for IriRef<T> {
-    #[inline]
-    fn borrow(&self) -> &str {
-        &self.iri
-    }
-}
-
 impl<T: Deref<Target = str>> fmt::Debug for IriRef<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&*self.iri, f)
@@ -181,102 +171,6 @@ impl FromStr for IriRef<String> {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s.to_owned())
-    }
-}
-
-#[cfg(feature = "bytewise")]
-mod bytewise_impls {
-    use super::{Deref, Hash, Hasher, Iri, IriRef, Ordering};
-    impl<T: Deref<Target = str>> PartialEq for IriRef<T> {
-        fn eq(&self, other: &Self) -> bool {
-            *self.iri == *other.iri
-        }
-    }
-    impl<T: Deref<Target = str>> Eq for IriRef<T> {}
-    impl<T: Deref<Target = str>> Hash for IriRef<T> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            (*self.iri).hash(state);
-        }
-    }
-    impl<T: Deref<Target = str>> PartialOrd for IriRef<T> {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-    impl<T: Deref<Target = str>> Ord for IriRef<T> {
-        fn cmp(&self, other: &Self) -> Ordering {
-            (*self.iri).cmp(&*other.iri)
-        }
-    }
-    impl<T: Deref<Target = str>> PartialEq for Iri<T> {
-        fn eq(&self, other: &Self) -> bool {
-            self.0 == other.0
-        }
-    }
-    impl<T: Deref<Target = str>> Eq for Iri<T> {}
-    impl<T: Deref<Target = str>> Hash for Iri<T> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            self.0.hash(state);
-        }
-    }
-    impl<T: Deref<Target = str>> PartialOrd for Iri<T> {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-    impl<T: Deref<Target = str>> Ord for Iri<T> {
-        fn cmp(&self, other: &Self) -> Ordering {
-            self.0.cmp(&other.0)
-        }
-    }
-}
-
-#[cfg(not(feature = "bytewise"))]
-mod normalized_impls {
-    use super::{Deref, Hash, Hasher, Iri, IriRef, Ordering};
-    use crate::normalize::{iri_cmp, iri_eq, normalized_hash};
-
-    impl<T: Deref<Target = str>> PartialEq for IriRef<T> {
-        fn eq(&self, other: &Self) -> bool {
-            iri_eq(&self.iri, self.positions, &other.iri, other.positions)
-        }
-    }
-    impl<T: Deref<Target = str>> Eq for IriRef<T> {}
-    impl<T: Deref<Target = str>> Hash for IriRef<T> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            normalized_hash(&self.iri, self.positions, state);
-        }
-    }
-    impl<T: Deref<Target = str>> PartialOrd for IriRef<T> {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-    impl<T: Deref<Target = str>> Ord for IriRef<T> {
-        fn cmp(&self, other: &Self) -> Ordering {
-            iri_cmp(&self.iri, self.positions, &other.iri, other.positions)
-        }
-    }
-    impl<T: Deref<Target = str>> PartialEq for Iri<T> {
-        fn eq(&self, other: &Self) -> bool {
-            iri_eq(&self.0.iri, self.0.positions, &other.0.iri, other.0.positions)
-        }
-    }
-    impl<T: Deref<Target = str>> Eq for Iri<T> {}
-    impl<T: Deref<Target = str>> Hash for Iri<T> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            normalized_hash(&self.0.iri, self.0.positions, state);
-        }
-    }
-    impl<T: Deref<Target = str>> PartialOrd for Iri<T> {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-    impl<T: Deref<Target = str>> Ord for Iri<T> {
-        fn cmp(&self, other: &Self) -> Ordering {
-            iri_cmp(&self.0.iri, self.0.positions, &other.0.iri, other.0.positions)
-        }
     }
 }
 
@@ -313,25 +207,22 @@ impl From<IriRef<String>> for IriRef<Cow<'_, str>> {
     }
 }
 
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<str> for IriRef<T> {
     fn eq(&self, other: &str) -> bool {
         &*self.iri == other
     }
 }
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<&str> for IriRef<T> {
     fn eq(&self, other: &&str) -> bool {
         &*self.iri == *other
     }
 }
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<String> for IriRef<T> {
     fn eq(&self, other: &String) -> bool {
         &*self.iri == other.as_str()
@@ -434,12 +325,6 @@ impl<T: Deref<Target = str>> AsRef<str> for Iri<T> {
         <IriRef<T> as AsRef<str>>::as_ref(&self.0)
     }
 }
-#[cfg(feature = "bytewise")]
-impl<T: Deref<Target = str>> Borrow<str> for Iri<T> {
-    fn borrow(&self) -> &str {
-        self.0.borrow()
-    }
-}
 
 impl<T: Deref<Target = str>> fmt::Debug for Iri<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -487,25 +372,22 @@ impl<'a> From<&'a Iri<String>> for Iri<&'a str> {
     }
 }
 
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<str> for Iri<T> {
     fn eq(&self, other: &str) -> bool {
         self.0.eq(other)
     }
 }
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<&str> for Iri<T> {
     fn eq(&self, other: &&str) -> bool {
         self.0.eq(other)
     }
 }
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<String> for Iri<T> {
     fn eq(&self, other: &String) -> bool {
         self.0.eq(other)
@@ -635,12 +517,6 @@ impl<T: Deref<Target = str>> AsRef<str> for UriRef<T> {
         &self.uri
     }
 }
-#[cfg(feature = "bytewise")]
-impl<T: Deref<Target = str>> Borrow<str> for UriRef<T> {
-    fn borrow(&self) -> &str {
-        &self.uri
-    }
-}
 impl<T: Deref<Target = str>> fmt::Debug for UriRef<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&*self.uri, f)
@@ -767,12 +643,6 @@ impl<T: Deref<Target = str>> AsRef<str> for Uri<T> {
         <UriRef<T> as AsRef<str>>::as_ref(&self.0)
     }
 }
-#[cfg(feature = "bytewise")]
-impl<T: Deref<Target = str>> Borrow<str> for Uri<T> {
-    fn borrow(&self) -> &str {
-        self.0.borrow()
-    }
-}
 impl<T: Deref<Target = str>> fmt::Debug for Uri<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
@@ -811,149 +681,96 @@ impl<'a> From<Uri<&'a str>> for Uri<String> {
     }
 }
 
-#[cfg(feature = "bytewise")]
-mod uri_bytewise {
-    use super::{Deref, Hash, Hasher, Ordering, Uri, UriRef};
-    impl<T: Deref<Target = str>> PartialEq for UriRef<T> {
-        fn eq(&self, other: &Self) -> bool {
-            *self.uri == *other.uri
-        }
-    }
-    impl<T: Deref<Target = str>> Eq for UriRef<T> {}
-    impl<T: Deref<Target = str>> Hash for UriRef<T> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            (*self.uri).hash(state);
-        }
-    }
-    impl<T: Deref<Target = str>> PartialOrd for UriRef<T> {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-    impl<T: Deref<Target = str>> Ord for UriRef<T> {
-        fn cmp(&self, other: &Self) -> Ordering {
-            (*self.uri).cmp(&*other.uri)
-        }
-    }
-    impl<T: Deref<Target = str>> PartialEq for Uri<T> {
-        fn eq(&self, other: &Self) -> bool {
-            self.0 == other.0
-        }
-    }
-    impl<T: Deref<Target = str>> Eq for Uri<T> {}
-    impl<T: Deref<Target = str>> Hash for Uri<T> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            self.0.hash(state);
-        }
-    }
-    impl<T: Deref<Target = str>> PartialOrd for Uri<T> {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-    impl<T: Deref<Target = str>> Ord for Uri<T> {
-        fn cmp(&self, other: &Self) -> Ordering {
-            self.0.cmp(&other.0)
-        }
-    }
-}
-
-#[cfg(not(feature = "bytewise"))]
-mod uri_norm {
-    use super::{Deref, Hash, Hasher, Ordering, Uri, UriRef};
-    use crate::normalize::{iri_cmp, iri_eq, normalized_hash};
-    impl<T: Deref<Target = str>> PartialEq for UriRef<T> {
-        fn eq(&self, other: &Self) -> bool {
-            iri_eq(&self.uri, self.positions, &other.uri, other.positions)
-        }
-    }
-    impl<T: Deref<Target = str>> Eq for UriRef<T> {}
-    impl<T: Deref<Target = str>> Hash for UriRef<T> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            normalized_hash(&self.uri, self.positions, state);
-        }
-    }
-    impl<T: Deref<Target = str>> PartialOrd for UriRef<T> {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-    impl<T: Deref<Target = str>> Ord for UriRef<T> {
-        fn cmp(&self, other: &Self) -> Ordering {
-            iri_cmp(&self.uri, self.positions, &other.uri, other.positions)
-        }
-    }
-    impl<T: Deref<Target = str>> PartialEq for Uri<T> {
-        fn eq(&self, other: &Self) -> bool {
-            iri_eq(&self.0.uri, self.0.positions, &other.0.uri, other.0.positions)
-        }
-    }
-    impl<T: Deref<Target = str>> Eq for Uri<T> {}
-    impl<T: Deref<Target = str>> Hash for Uri<T> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            normalized_hash(&self.0.uri, self.0.positions, state);
-        }
-    }
-    impl<T: Deref<Target = str>> PartialOrd for Uri<T> {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-    impl<T: Deref<Target = str>> Ord for Uri<T> {
-        fn cmp(&self, other: &Self) -> Ordering {
-            iri_cmp(&self.0.uri, self.0.positions, &other.0.uri, other.0.positions)
-        }
-    }
-}
-
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<str> for UriRef<T> {
     fn eq(&self, other: &str) -> bool {
         &*self.uri == other
     }
 }
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<&str> for UriRef<T> {
     fn eq(&self, other: &&str) -> bool {
         &*self.uri == *other
     }
 }
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<String> for UriRef<T> {
     fn eq(&self, other: &String) -> bool {
         &*self.uri == other.as_str()
     }
 }
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<str> for Uri<T> {
     fn eq(&self, other: &str) -> bool {
         self.0.eq(other)
     }
 }
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<&str> for Uri<T> {
     fn eq(&self, other: &&str) -> bool {
         self.0.eq(other)
     }
 }
-/// Compares `as_str()` byte for byte, without normalizing: `HTTP://a` is `==`
-/// to an `IriBuf` of `http://a` but not to the string `"http://a"`. Parse the
-/// string, or compare `normalized()` with it, for equivalence.
+/// Compares `as_str()` byte for byte, as `==` between two IRIs does. Parse
+/// the string and call `equivalent()` for comparison modulo normalization.
 impl<T: Deref<Target = str>> PartialEq<String> for Uri<T> {
     fn eq(&self, other: &String) -> bool {
         self.0.eq(other)
     }
 }
+
+/// Implements `PartialEq`, `Eq`, `Hash`, `PartialOrd`, `Ord` and
+/// `Borrow<str>` for the given reference types, all on `as_str()`.
+///
+/// This is RFC 3987 §5.3.1 Simple String Comparison: two values are equal
+/// exactly when their strings are, and order as their strings do, byte by
+/// byte. RDF and JSON-LD identity requires it (RDF 1.1 Concepts §3.2: "Further
+/// normalization MUST NOT be performed when comparing IRIs for equality").
+/// Normalized comparison is `equivalent()`. Since the impls are those of
+/// `str`, `Borrow<str>` holds its contract, and a map or set keyed by these
+/// types can be looked up by `&str`.
+macro_rules! string_identity {
+    ($($ty:ident),*) => {$(
+        impl<T: Deref<Target = str>> PartialEq for $ty<T> {
+            #[inline]
+            fn eq(&self, other: &Self) -> bool {
+                self.as_str() == other.as_str()
+            }
+        }
+        impl<T: Deref<Target = str>> Eq for $ty<T> {}
+        impl<T: Deref<Target = str>> Hash for $ty<T> {
+            #[inline]
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.as_str().hash(state);
+            }
+        }
+        impl<T: Deref<Target = str>> PartialOrd for $ty<T> {
+            #[inline]
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+        impl<T: Deref<Target = str>> Ord for $ty<T> {
+            #[inline]
+            fn cmp(&self, other: &Self) -> Ordering {
+                self.as_str().cmp(other.as_str())
+            }
+        }
+        impl<T: Deref<Target = str>> Borrow<str> for $ty<T> {
+            #[inline]
+            fn borrow(&self) -> &str {
+                self.as_str()
+            }
+        }
+    )*};
+}
+
+string_identity!(IriRef, Iri, UriRef, Uri);
 
 pub type IriBuf = Iri<String>;
 pub type IriRefBuf = IriRef<String>;
@@ -1115,20 +932,30 @@ mod serde_impls {
 mod tests {
     use super::*;
 
-    /// `Borrow<str>` exists only where `str` compares and hashes like the
-    /// owned type, so a lookup by the key's own text finds it.
-    #[cfg(feature = "bytewise")]
+    /// `Borrow<str>` agrees with `==`, `Hash` and `Ord`, so every map and set
+    /// keyed by one of the four types finds a key by its own text, whatever
+    /// its spelling.
     #[test]
     fn maps_and_sets_are_looked_up_by_str() {
-        use std::collections::{BTreeSet, HashSet};
-        for s in ["HTTP://A/b", "http://a/%7e", "foo:bar"] {
-            let iri = IriBuf::new(s.to_owned()).unwrap();
-            let uri = UriBuf::new(s.to_owned()).unwrap();
-            assert!(HashSet::from([iri.clone()]).contains(s), "{s:?}");
-            assert!(BTreeSet::from([iri]).contains(s), "{s:?}");
-            assert!(HashSet::from([uri.clone()]).contains(s), "{s:?}");
-            assert!(BTreeSet::from([uri]).contains(s), "{s:?}");
+        use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+        fn check<K: Ord + Hash + Borrow<str> + Clone>(key: &K, s: &str) {
+            assert!(HashSet::from([key.clone()]).contains(s), "{s:?}");
+            assert!(BTreeSet::from([key.clone()]).contains(s), "{s:?}");
+            assert_eq!(HashMap::from([(key.clone(), 1)]).get(s), Some(&1), "{s:?}");
+            assert_eq!(BTreeMap::from([(key.clone(), 1)]).get(s), Some(&1), "{s:?}");
         }
+        for s in ["HTTP://A/b", "http://a/%7e", "http://a/~", "foo:bar", "foo:a/../b"] {
+            check(&IriBuf::new(s).unwrap(), s);
+            check(&IriRefBuf::new(s).unwrap(), s);
+            check(&UriBuf::new(s).unwrap(), s);
+            check(&UriRefBuf::new(s).unwrap(), s);
+        }
+        for s in ["../a", "./%7E", "?q"] {
+            check(&IriRefBuf::new(s).unwrap(), s);
+            check(&UriRefBuf::new(s).unwrap(), s);
+        }
+        // A differently spelled equivalent is another key.
+        assert!(!HashSet::from([IriBuf::new("http://a/~").unwrap()]).contains("http://a/%7E"));
     }
 
     #[test]

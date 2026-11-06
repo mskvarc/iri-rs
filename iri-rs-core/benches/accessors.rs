@@ -37,12 +37,12 @@ fn bench_component_extract(c: &mut Criterion) {
         g.bench_with_input(BenchmarkId::from_parameter(label), iri, |b, iri| {
             b.iter(|| {
                 let iri = black_box(*iri);
-                let s = iri.scheme().len();
-                let a = iri.authority().map_or(0, str::len);
-                let p = iri.path().len();
-                let q = iri.query().map_or(0, str::len);
-                let f = iri.fragment().map_or(0, str::len);
-                s + a + p + q + f
+                let scheme = iri.scheme().len();
+                let authority = iri.authority().map_or(0, str::len);
+                let path = iri.path().len();
+                let query = iri.query().map_or(0, str::len);
+                let fragment = iri.fragment().map_or(0, str::len);
+                scheme + authority + path + query + fragment
             });
         });
     }
@@ -53,12 +53,12 @@ fn bench_component_extract(c: &mut Criterion) {
         g.bench_with_input(BenchmarkId::from_parameter(label), uri, |b, uri| {
             b.iter(|| {
                 let uri = black_box(*uri);
-                let s = uri.scheme().len();
-                let a = uri.authority().map_or(0, str::len);
-                let p = uri.path().len();
-                let q = uri.query().map_or(0, str::len);
-                let f = uri.fragment().map_or(0, str::len);
-                s + a + p + q + f
+                let scheme = uri.scheme().len();
+                let authority = uri.authority().map_or(0, str::len);
+                let path = uri.path().len();
+                let query = uri.query().map_or(0, str::len);
+                let fragment = uri.fragment().map_or(0, str::len);
+                scheme + authority + path + query + fragment
             });
         });
     }

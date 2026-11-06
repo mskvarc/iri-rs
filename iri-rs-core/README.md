@@ -40,13 +40,6 @@ cargo add iri-rs-core
 | Flag        | Default | Enables                                                            |
 | ----------- | :-----: | ------------------------------------------------------------------ |
 | `serde`     |         | `Serialize` / `Deserialize` for borrowed and owned types           |
-| `bytewise`  |         | Compare, hash and order byte-wise instead of RFC 3987 normalization |
-
-### `bytewise` changes comparison, not just hashing
-
-`bytewise` swaps the `PartialEq`, `Eq`, `Hash`, `PartialOrd` and `Ord` impls of `Iri`, `IriRef`, `Uri` and `UriRef` for byte-wise ones. Without it, those impls compare and hash the RFC 3987 normalized form, so `http://example.com/%7Ea` and `http://example.com/~a` are equal and hash alike. With it, they are two different IRIs. Byte-wise is considerably cheaper, and it is the right choice when the IRIs you hold are already in the form you want to compare, but it is a semantic change and not only a speed one. They also add `Borrow<str>`, so a map or set keyed by these types can be looked up by `&str`. Without `bytewise` there is no `Borrow<str>`: std requires the borrowed form to compare and hash like the owned one, and a plain `str` compares bytes.
-
-Cargo unifies features across a dependency graph, which makes this a global switch: one dependency enabling `bytewise` changes IRI equality for every crate in the build, including crates that never asked for it. Enable it in an application, or in a library whose whole graph you control, rather than in a library published for others to combine.
 
 ## What's inside
 
@@ -54,13 +47,14 @@ Cargo unifies features across a dependency graph, which makes this a global swit
 - `Uri` / `UriBuf`, `UriRef` / `UriRefBuf` — URIs and URI references (RFC 3986).
 - `Positions` — pre-computed component ends. Used by `from_raw_parts` for const construction in [`iri-rs-static`](../iri-rs-static/) and [`iri-rs-enum`](../iri-rs-enum/).
 - Strict RFC 3986 §5 reference resolution, matching its §5.4 examples.
-- RFC 3986/3987 §6.2.2 normalization: `normalized()` returns the normal form that equality, hashing and ordering compare (protocol-agnostic, percent-decoding-aware); `normalized_for_scheme()` adds the §6.2.3 `http`/`https` defaults.
+- `==`, `Hash` and `Ord` by RFC 3987 §5.3.1 simple string comparison, with `Borrow<str>` for lookups by `&str`.
+- RFC 3986/3987 §6.2.2 normalization: `equivalent()` compares two values modulo the normal form without building it, and `normalized()` returns the normal form (protocol-agnostic, percent-decoding-aware); `normalized_for_scheme()` adds the §6.2.3 `http`/`https` defaults. See the [root README](../README.md#comparison) for which to use when.
 
 ## Performance notes
 
 - `simdutf8` for fast UTF-8 validation.
 - `memchr` for `%` and delimiter scans.
-- SWAR / byte-level fast paths on `new`, `eq`, `ord`, `hash`, `len`.
+- SWAR / byte-level fast paths on `new` and `len`.
 - `smallvec` for small-path accumulation in resolution / normalization.
 
 ## Benchmarks

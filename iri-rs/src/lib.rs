@@ -32,15 +32,14 @@
 //!   - borrowed and owned URI/IRIs and URI/IRI-reference;
 //!   - mutable URI/IRI buffers (in-place);
 //!   - path normalization;
-//!   - comparison modulo normalization;
+//!   - simple string comparison through `==`, `Hash` and `Ord`, and
+//!     comparison modulo normalization through `equivalent()`;
 //!   - URI/IRI-reference resolution;
 //!   - static URI/IRI parsing using the `iri!`, `uri!`, `iri_ref!` and
 //!     `uri_ref!` macros (by enabling the `static` feature);
 //!   - `#[derive(IriEnum)]` for vocabulary enums (by enabling the `enum`
 //!     feature);
-//!   - `serde` support (by enabling the `serde` feature);
-//!   - byte-wise comparison, hashing and ordering (by enabling the `bytewise`
-//!     feature).
+//!   - `serde` support (by enabling the `serde` feature).
 //!
 //! ## Basic usage
 //!
@@ -142,7 +141,24 @@
 //!
 //! ### IRI comparison
 //!
-//! Here are the features of the IRI comparison method implemented in this crate.
+//! `==`, `Hash` and `Ord` are [RFC 3987 §5.3.1](https://www.rfc-editor.org/rfc/rfc3987#section-5.3.1)
+//! Simple String Comparison: two IRIs are equal exactly when their strings
+//! are, and they sort as their strings do. This is what RDF and JSON-LD
+//! require of IRI identity. `Borrow<str>` agrees with it, so a map keyed by
+//! IRIs can be looked up by `&str`.
+//!
+//! ```rust
+//! use iri_rs::IriBuf;
+//! use std::collections::HashSet;
+//!
+//! let set = HashSet::from([IriBuf::new("http://example.org/~a").unwrap()]);
+//! assert!(set.contains("http://example.org/~a"));
+//! assert!(!set.contains("http://example.org/%7Ea"));
+//! ```
+//!
+//! `equivalent` is the §5.3.2 rung, syntax-based normalization, for protocols
+//! that ask for it (RFC 3987 §5.1 leaves the choice to the application). Here
+//! are its features.
 //!
 //! #### Protocol agnostic
 //!
@@ -177,15 +193,26 @@
 //!
 //! Escaped unreserved characters are decoded and escape hex digits are
 //! case-insensitive, in every component, before dot segments are removed.
-//! The two IRIs `http://example.org` and `http://exa%6dple.org` **are** equivalent.
+//! The two IRIs `http://example.org` and `http://exa%6dple.org` are
+//! equivalent, but not `==`.
+//!
+//! ```rust
+//! use iri_rs::Iri;
+//!
+//! let a = Iri::parse("http://example.org").unwrap();
+//! let b = Iri::parse("http://exa%6dple.org").unwrap();
+//! assert!(a.equivalent(&b));
+//! assert_ne!(a, b);
+//! ```
 //!
 //! #### The normal form
 //!
-//! `normalized` returns the form that equality, hashing and ordering compare, so it is
-//! equal to the IRI it came from (unless the `bytewise` feature is on). `normalized_for_scheme` also applies
-//! the RFC 3986 §6.2.3 scheme-based steps (no empty port, and for `http`/`https`
-//! no `:80`/`:443` and `/` for an empty path), so its result may not be equal
-//! to the original.
+//! `normalized` returns the normal form: two IRIs are equivalent exactly when
+//! their normal forms are `==`, so normalizing once where IRIs enter gives
+//! keys that hash and compare by normalized identity. `normalized_for_scheme`
+//! also applies the RFC 3986 §6.2.3 scheme-based steps (no empty port, and for
+//! `http`/`https` no `:80`/`:443` and `/` for an empty path), so its result
+//! need not be equivalent to the original.
 //!
 //! ```rust
 //! use iri_rs::IriBuf;

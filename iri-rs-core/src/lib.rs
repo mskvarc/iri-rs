@@ -1,4 +1,4 @@
-//! IRI / URI parsing, validation, resolution, and RFC 3986/3987 §6.2.2 equivalence.
+//! IRI / URI parsing, validation, resolution, and RFC 3986/3987 §6.2.2 normalization and equivalence.
 
 pub mod components;
 pub mod error;

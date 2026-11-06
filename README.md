@@ -50,8 +50,8 @@ Fork of [`iref`](https://crates.io/crates/iref), [`static-iref`](https://crates.
 - Workspace split into [`iri-rs-core`](iri-rs-core/), [`iri-rs-static`](iri-rs-static/), [`iri-rs-enum`](iri-rs-enum/) under the [`iri-rs`](iri-rs/) facade.
 - Reworked `IriEnum` derive ([`iri-rs-enum`](iri-rs-enum/)) — compile-time prefix resolution, `const`-friendly output via `from_raw_parts`.
 - Reworked compile-time macros (`iri!`, `uri!`, `iri_ref!`, `uri_ref!`) — validate at macro expansion, emit `const`-friendly `from_raw_parts` with pre-computed component positions.
-- SIMD-accelerated UTF-8 validation via `simdutf8`, `memchr`-accelerated percent scan, SWAR/byte-level fast paths on `new`, `eq`, `ord`, `hash`, `len`.
-- Opt-in `bytewise` feature: compare, hash and order IRIs byte-wise instead of by RFC 3987 normalization.
+- SIMD-accelerated UTF-8 validation via `simdutf8`, `memchr`-accelerated percent scan, SWAR/byte-level fast paths on `new` and `len`.
+- `==`, `Hash` and `Ord` are RFC 3987 §5.3.1 simple string comparison, with `Borrow<str>`; `equivalent()` and `normalized()` give the §5.3.2 syntax-based rung.
 - Criterion bench suite (`parse`, `accessors`, `resolve`, `normalize`, `mutate`, `normalize_eq`, `validate`).
 - Rust 2024 edition, MSRV 1.85.
 - Renamed crates: `iref` → `iri-rs`, `static-iref` → `iri-rs-static`, `iref-enum` → `iri-rs-enum`.
@@ -71,13 +71,6 @@ cargo add iri-rs
 | `static`    |         | Compile-time `iri!`, `uri!`, `iri_ref!`, `uri_ref!` macros                |
 | `enum`      |         | `#[derive(IriEnum)]` for vocabulary enums                                 |
 | `serde`     |         | `Serialize` / `Deserialize` for borrowed and owned types                  |
-| `bytewise`  |         | Compare, hash and order byte-wise instead of by RFC 3987 normalization    |
-
-### `bytewise` changes comparison, not just hashing
-
-`bytewise` swaps the `PartialEq`, `Eq`, `Hash`, `PartialOrd` and `Ord` impls of `Iri`, `IriRef`, `Uri` and `UriRef` for byte-wise ones. Without it, those impls compare and hash the RFC 3987 normalized form, so `http://example.com/%7Ea` and `http://example.com/~a` are equal and hash alike. With it, they are two different IRIs. Byte-wise is considerably cheaper, and it is the right choice when the IRIs you hold are already in the form you want to compare, but it is a semantic change and not only a speed one. They also add `Borrow<str>`, so a map or set keyed by these types can be looked up by `&str`. Without `bytewise` there is no `Borrow<str>`: std requires the borrowed form to compare and hash like the owned one, and a plain `str` compares bytes.
-
-Cargo unifies features across a dependency graph, which makes this a global switch: one dependency enabling `bytewise` changes IRI equality for every crate in the build, including crates that never asked for it. Enable it in an application, or in a library whose whole graph you control, rather than in a library published for others to combine.
 
 ## Compile-time IRIs
 
@@ -124,19 +117,19 @@ r.resolve(&base)?;
 assert_eq!(r, "http://a/b/c/y");
 ```
 
-## Equivalence
+## Comparison
 
-Equality, hashing and ordering compare the RFC 3986/3987 §6.2.2 syntax-based normal form:
+`==`, `Hash` and `Ord` on `Iri`, `IriRef`, `Uri` and `UriRef` are RFC 3987 §5.3.1 Simple String Comparison: two values are equal exactly when their `as_str()` are, and they sort as their strings do, byte by byte. `Borrow<str>` agrees with them, so a map or set keyed by these types can be looked up by `&str`. Comparing with a `str`, `&str` or `String` is the same byte comparison.
+
+`equivalent()` is the §5.3.2 rung, syntax-based normalization (RFC 3986 §6.2.2). It compares the components as it reads them, and allocates only for a component that holds an escape, uppercase host letters or dot segments:
 
 - **Case** — the scheme and host are case-insensitive: `HTTP://Example.COM/` ≡ `http://example.com/`. The user info, path, query and fragment keep their case.
 - **Percent encoding** — escaped unreserved characters decode and hex digits are case-insensitive, in every component: `http://exa%6dple.org/%7e` ≡ `http://example.org/~`, `%2f` ≡ `%2F`.
-- **Dot segments** — `a/../a/./b/../b/c` ≡ `a/b/c`. Escapes decode first, so `/a/%2E%2E/b` ≡ `/b`. Under a scheme or an authority they go as resolution removes them, so an IRI equals what it resolves to: `foo:a/../../b` ≡ `foo:/b`. A relative-path reference keeps a `..` with nothing to climb over, since it still climbs the base it is resolved against: `a/../../b` ≡ `../b`, not `b`.
-- **Protocol-agnostic** — `http://example.org` and `http://example.org:80` are **not** equal. Equality knows nothing about scheme defaults.
-- **Every `/` counts** — `/foo/bar` and `/foo/bar/` are **not** equal.
+- **Dot segments** — `a/../a/./b/../b/c` ≡ `a/b/c`. Escapes decode first, so `/a/%2E%2E/b` ≡ `/b`. Under a scheme or an authority they go as resolution removes them, so an IRI is equivalent to what it resolves to: `foo:a/../../b` ≡ `foo:/b`. A relative-path reference keeps a `..` with nothing to climb over, since it still climbs the base it is resolved against: `a/../../b` ≡ `../b`, not `b`.
+- **Protocol-agnostic** — `http://example.org` and `http://example.org:80` are **not** equivalent. `equivalent()` knows nothing about scheme defaults.
+- **Every `/` counts** — `/foo/bar` and `/foo/bar/` are **not** equivalent.
 
-Two values whose `as_str()` differs can still hash equal and compare `Equal` — keep that in mind when used as map keys. Comparing with a string (`str`, `&str`, `String`) is byte-wise, though: `IriBuf::new("HTTP://a")? == "http://a"` is `false`. Parse the string first to compare by equivalence. Ordering sorts component by component (scheme, then user info, host and port, then path, query and fragment), not by the raw string.
-
-`normalized()` returns that normal form, so `iri.normalized() == iri` holds and both hash alike (without the `bytewise` feature). `normalized_for_scheme()` also applies the §6.2.3 `http`/`https` defaults: it drops `:80`/`:443` and turns an empty path into `/`, and drops an empty port (`a:`) for any scheme. Its result can therefore differ from the input under `==`.
+`normalized()` returns that normal form: `a.equivalent(&b)` holds exactly when `a.normalized() == b.normalized()`. To key a map or set by normalized identity, normalize each IRI once and key by the result. `normalized_for_scheme()` also applies the §6.2.3 `http`/`https` defaults: it drops `:80`/`:443` and turns an empty path into `/`, and drops an empty port (`a:`) for any scheme. Its result therefore need not be equivalent to the input.
 
 ```rust
 use iri_rs::IriBuf;
@@ -144,7 +137,15 @@ use iri_rs::IriBuf;
 let iri = IriBuf::new("HTTP://Example.COM:80/a/./b/../%7Ec?Q=1")?;
 assert_eq!(iri.normalized().as_str(), "http://example.com:80/a/~c?Q=1");
 assert_eq!(iri.normalized_for_scheme().as_str(), "http://example.com/a/~c?Q=1");
+
+let plain = IriBuf::new("http://example.com:80/a/~c?Q=1")?;
+assert!(iri != plain);
+assert!(iri.equivalent(&plain));
 ```
+
+### Which comparison to use
+
+RFC 3987 §5.1 leaves the choice to the application, and different specifications choose differently, sometimes in the same program. Identity tokens with no protocol behind them must use simple string comparison: RDF (RDF 1.1 Concepts §3.2) and JSON-LD compare IRIs with `==`. A protocol that asks for normalized comparison, such as NGSI-LD (ETSI GS CIM 009 §5.5.1, which defers to RFC 3986 §6), calls `equivalent()`, or normalizes once with `normalized()` where values enter and compares the results with `==`. Nothing rewrites an IRI in place, so one that is passed on keeps the form it arrived in, as RFC 3987 §5.3.2.3 requires.
 
 ## Examples
 

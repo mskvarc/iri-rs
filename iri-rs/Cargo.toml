@@ -19,7 +19,6 @@ default = []
 static = ["dep:iri-rs-static"]
 enum = ["dep:iri-rs-enum"]
 serde = ["iri-rs-core/serde"]
-bytewise = ["iri-rs-core/bytewise"]
 
 [dependencies]
 iri-rs-core.workspace = true
