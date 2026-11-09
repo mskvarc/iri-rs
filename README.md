@@ -164,6 +164,8 @@ assert_eq!(iri.to_uri().as_str(), "https://B%C3%BCcher.example/caf%C3%A9");
 
 RFC 3987 §5.1 leaves the choice to the application, and different specifications choose differently, sometimes in the same program. Identity tokens with no protocol behind them must use simple string comparison: RDF (RDF 1.1 Concepts §3.2) and JSON-LD compare IRIs with `==`. A protocol that asks for normalized comparison, such as NGSI-LD (ETSI GS CIM 009 §5.5.1, which defers to RFC 3986 §6), calls `equivalent()`, or normalizes once with `normalized()` where values enter and compares the results with `==`. Nothing rewrites an IRI in place, so one that is passed on keeps the form it arrived in, as RFC 3987 §5.3.2.3 requires.
 
+[iri-rs and the two kinds of IRI equality](https://andromeda.skvarc.com/docs/libraries/iri-rs/), on the Andromeda documentation site, sets out which rung each specification asks for and why `==` is simple string comparison.
+
 ## Examples
 
 ```sh
