@@ -9,7 +9,7 @@ resolver = "3"
 pedantic = { level = "warn", priority = -1 }
 
 [workspace.package]
-version = "4.1.0"
+version = "4.1.1"
 edition = "2024"
 rust-version = "1.85.1"
 authors = [
