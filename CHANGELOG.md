@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v4.1.1] - 2026-11-09
+
+### 📚 Documentation
+- link the andromeda iri-rs page
+
+### 🧹 Chores
+- bump version
+
 ## [v4.1.0] - 2026-11-06
 
 ### 🚀 Features
